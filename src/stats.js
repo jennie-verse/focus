@@ -79,7 +79,7 @@ export function formatBackupAge(lastBackupAt) {
   if (!lastBackupAt) return null
   const days = Math.max(0, Math.floor((Date.now() - lastBackupAt) / DAY_MS))
   const label = days === 0 ? '오늘' : days === 1 ? '어제' : `${days}일 전`
-  return { days, label, overdue: days > 7 }
+  return { days, label, overdue: days >= 7 }
 }
 
 export function getTodayStats(sessions) {

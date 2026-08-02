@@ -81,6 +81,29 @@ function playChime() {
   })
 }
 
+async function exportBackupFile(filename, content, mime) {
+  try {
+    const file = new File([content], filename, { type: mime })
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Focus 백업', text: '파일에 저장을 선택하면 iCloud Drive에 보관할 수 있습니다.' })
+      return true
+    }
+  } catch (error) {
+    if (error?.name === 'AbortError') return false
+  }
+  try {
+    const url = URL.createObjectURL(new Blob([content], { type: mime }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function ConfirmModal({ title, message, confirmLabel, danger = false, onConfirm, onCancel }) {
   return (
     <div className="modal-overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onCancel()}>
@@ -278,24 +301,8 @@ export default function App() {
   const exportBackup = async () => {
     const backup = JSON.stringify({ app: 'Focus', version: 1, exportedAt: Date.now(), settings, sessions }, null, 2)
     const filename = `focus-backup-${new Date().toISOString().slice(0, 10)}.json`
-    let saved = false
-    try {
-      const file = new File([backup], filename, { type: 'application/json' })
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Focus 백업', text: '파일에 저장을 선택하면 iCloud Drive에 보관할 수 있습니다.' })
-        saved = true
-      }
-    } catch (error) {
-      if (error?.name === 'AbortError') return
-    }
-    if (!saved) {
-      const url = URL.createObjectURL(new Blob([backup], { type: 'application/json' }))
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      link.click()
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-    }
+    const saved = await exportBackupFile(filename, backup, 'application/json')
+    if (!saved) return
     const timestamp = Date.now()
     localStorage.setItem('focus-last-backup', String(timestamp))
     setLastBackupAt(timestamp)
