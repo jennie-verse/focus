@@ -1,4 +1,5 @@
 import { BackIcon, ClockIcon, CloudDownIcon, TrashIcon, UploadIcon } from './Icons.jsx'
+import { formatBackupAge } from '../stats.js'
 
 const STEPPERS = [
   { key: 'focusMinutes', label: '집중 시간', suffix: '분', min: 1, max: 180, tone: 'pink' },
@@ -17,8 +18,15 @@ function Toggle({ checked, onChange, label }) {
   )
 }
 
-export default function SettingsScreen({ settings, onChange, onBack, onExport, onImport, onClear, lastBackupAt }) {
+const STORAGE_PROTECTION_LABEL = {
+  true: '저장 공간 보호 켜짐 · 자동 정리로부터 보호됩니다',
+  false: '저장 공간 보호 꺼짐',
+  null: '저장 공간 보호 이 브라우저에서 지원되지 않음',
+}
+
+export default function SettingsScreen({ settings, onChange, onBack, onExport, onImport, onClear, lastBackupAt, storagePersisted }) {
   const update = (key, value) => onChange({ ...settings, [key]: value })
+  const backupAge = formatBackupAge(lastBackupAt)
 
   return (
     <div className="settings-screen">
@@ -52,7 +60,19 @@ export default function SettingsScreen({ settings, onChange, onBack, onExport, o
         <section className="settings-group data-group">
           <h2>데이터</h2>
           <p>기록은 이 기기에 자동 저장됩니다. 백업 파일은 공유 메뉴에서 <b>파일에 저장</b>을 선택해 iCloud Drive에 보관할 수 있습니다.</p>
-          <button className="data-button sky" type="button" onClick={onExport}><CloudDownIcon /><span>iCloud 백업 저장<small>{lastBackupAt ? `마지막 백업 ${new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric' }).format(lastBackupAt)}` : '공유 메뉴에서 파일에 저장'}</small></span><b>›</b></button>
+          <p className="storage-protection-line">{STORAGE_PROTECTION_LABEL[storagePersisted]}</p>
+          <button className="data-button sky" type="button" onClick={onExport}>
+            <CloudDownIcon />
+            <span>
+              iCloud 백업 저장
+              <small className={backupAge?.overdue ? 'overdue' : ''}>
+                {backupAge
+                  ? `마지막 백업 ${new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric' }).format(lastBackupAt)} · ${backupAge.label}${backupAge.overdue ? ' · 백업 필요' : ''}`
+                  : '공유 메뉴에서 파일에 저장'}
+              </small>
+            </span>
+            <b>›</b>
+          </button>
           <button className="data-button lilac" type="button" onClick={onImport}><UploadIcon /><span>백업 가져오기<small>기존 기록과 안전하게 합치기</small></span><b>›</b></button>
         </section>
 

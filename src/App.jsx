@@ -103,6 +103,7 @@ export default function App() {
   const [toast, setToast] = useState('')
   const [confirmClear, setConfirmClear] = useState(false)
   const [lastBackupAt, setLastBackupAt] = useState(() => Number(localStorage.getItem('focus-last-backup')) || 0)
+  const [storagePersisted, setStoragePersisted] = useState(null)
   const importRef = useRef(null)
   const completionRef = useRef(false)
   const toastTimerRef = useRef(null)
@@ -126,6 +127,29 @@ export default function App() {
     return () => {
       cancelled = true
       window.clearTimeout(toastTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function ensurePersistentStorage() {
+      try {
+        if (!navigator.storage?.persisted || !navigator.storage?.persist) return
+        const already = await navigator.storage.persisted()
+        if (cancelled) return
+        if (already) {
+          setStoragePersisted(true)
+          return
+        }
+        const granted = await navigator.storage.persist()
+        if (!cancelled) setStoragePersisted(granted)
+      } catch {
+        // Persistent storage is best-effort; ignore failures on unsupported browsers.
+      }
+    }
+    ensurePersistentStorage()
+    return () => {
+      cancelled = true
     }
   }, [])
 
@@ -342,6 +366,7 @@ export default function App() {
           onImport={() => importRef.current?.click()}
           onClear={() => setConfirmClear(true)}
           lastBackupAt={lastBackupAt}
+          storagePersisted={storagePersisted}
         />
       )}
       <input ref={importRef} className="hidden-file" type="file" accept=".json,application/json" onChange={importBackup} />
