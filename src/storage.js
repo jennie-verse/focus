@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   longEvery: 4,
   sound: true,
   vibration: true,
+  notify: true,
   autoStart: false,
 })
 

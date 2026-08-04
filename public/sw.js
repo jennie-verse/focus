@@ -1,4 +1,4 @@
-const VERSION = '2026.08.01-focus4'
+const VERSION = '2026.08.04-focus5'
 const CACHE = `focus-${VERSION}`
 
 const CORE_ASSETS = [
@@ -73,5 +73,18 @@ self.addEventListener('fetch', (event) => {
       return (await cache.match('./index.html')) || (await cache.match('./')) || Response.error()
     }
     return Response.error()
+  })())
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil((async () => {
+    const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    const existing = clientList.find((client) => new URL(client.url).origin === self.location.origin)
+    if (existing) {
+      await existing.focus()
+      return
+    }
+    await self.clients.openWindow(self.registration.scope)
   })())
 })

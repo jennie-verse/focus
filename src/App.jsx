@@ -64,6 +64,27 @@ function primeAudio() {
   }
 }
 
+async function notifySessionEnd(mode) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return
+  const title = mode === 'focus' ? '집중 세션 종료' : '휴식 종료'
+  const body = mode === 'focus' ? '수고했어요. 휴식을 시작하세요.' : '휴식이 끝났어요. 다시 집중해볼까요?'
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration()
+    if (registration) {
+      await registration.showNotification(title, { body, icon: `${import.meta.env.BASE_URL}icons/icon-192.png`, tag: 'focus-session-end' })
+      return
+    }
+  } catch {
+    // Fall through to the page-level Notification below.
+  }
+  try {
+    // eslint-disable-next-line no-new
+    new Notification(title, { body })
+  } catch {
+    // Notifications are best-effort; sound/vibration already covered the alert.
+  }
+}
+
 function playChime() {
   if (!audioContext) return
   const now = audioContext.currentTime
@@ -215,6 +236,7 @@ export default function App() {
     if (completed) {
       if (settings.sound) playChime()
       if (settings.vibration && navigator.vibrate) navigator.vibrate([180, 80, 180])
+      if (settings.notify) notifySessionEnd(timer.mode)
     }
 
     let nextMode = timer.mode === 'focus' ? 'short' : 'focus'
@@ -290,7 +312,11 @@ export default function App() {
     setTimer((current) => ({ ...current, status: 'running', targetEnd: Date.now() + current.remainingSeconds * 1000 }))
   }
 
-  const handleSettingsChange = (nextSettings) => {
+  const handleSettingsChange = async (nextSettings) => {
+    if (nextSettings.notify && !settings.notify && 'Notification' in window && Notification.permission === 'default') {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') nextSettings = { ...nextSettings, notify: false }
+    }
     setSettings(nextSettings)
     setTimer((current) => current.status === 'idle'
       ? { ...current, totalSeconds: secondsFor(current.mode, nextSettings), remainingSeconds: secondsFor(current.mode, nextSettings) }
