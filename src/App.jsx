@@ -202,6 +202,13 @@ export default function App() {
   }, [settings])
 
   useEffect(() => {
+    if (!settings.notify || !('Notification' in window) || Notification.permission !== 'default') return
+    Notification.requestPermission().then((permission) => {
+      if (permission !== 'granted') setSettings((current) => ({ ...current, notify: false }))
+    })
+  }, [settings.notify])
+
+  useEffect(() => {
     saveActiveTimer(timer)
     document.title = timer.status === 'idle' ? 'Focus' : `${formatTimer(timer.remainingSeconds)} · Focus`
   }, [timer])
@@ -313,10 +320,6 @@ export default function App() {
   }
 
   const handleSettingsChange = async (nextSettings) => {
-    if (nextSettings.notify && !settings.notify && 'Notification' in window && Notification.permission === 'default') {
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') nextSettings = { ...nextSettings, notify: false }
-    }
     setSettings(nextSettings)
     setTimer((current) => current.status === 'idle'
       ? { ...current, totalSeconds: secondsFor(current.mode, nextSettings), remainingSeconds: secondsFor(current.mode, nextSettings) }
