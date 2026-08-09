@@ -139,7 +139,13 @@ function ConfirmModal({ title, message, confirmLabel, danger = false, onConfirm,
 }
 
 export default function App() {
-  const [settings, setSettings] = useState(() => loadSettings())
+  const [settings, setSettings] = useState(() => {
+    const loaded = loadSettings()
+    if (loaded.notify && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+      return { ...loaded, notify: false }
+    }
+    return loaded
+  })
   const [timer, setTimer] = useState(() => restoreTimer(settings))
   const [sessions, setSessions] = useState([])
   const [subject, setSubject] = useState(() => localStorage.getItem('focus-last-subject') || '')
