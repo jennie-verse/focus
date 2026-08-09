@@ -15,6 +15,7 @@ import {
   saveActiveTimer,
   saveSettings,
 } from './storage.js'
+import * as SyncApi from './sync.js'
 import { formatTimer, getRecentDays, getStreak, getTodayStats } from './stats.js'
 
 const MODE_SETTING = {
@@ -56,6 +57,11 @@ function makeId() {
   return crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+function formatMoment(timestamp) {
+  if (!timestamp) return 'Never'
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(timestamp)
+}
+
 function primeAudio() {
   try {
     audioContext ||= new (window.AudioContext || window.webkitAudioContext)()
@@ -67,8 +73,8 @@ function primeAudio() {
 
 async function notifySessionEnd(mode) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return
-  const title = mode === 'focus' ? '집중 세션 종료' : '휴식 종료'
-  const body = mode === 'focus' ? '수고했어요. 휴식을 시작하세요.' : '휴식이 끝났어요. 다시 집중해볼까요?'
+  const title = mode === 'focus' ? 'Focus session finished' : 'Break finished'
+  const body = mode === 'focus' ? 'Nice work. Time for a break.' : 'Break is over. Ready to focus again?'
   try {
     const registration = await navigator.serviceWorker?.getRegistration()
     if (registration) {
@@ -107,7 +113,7 @@ async function exportBackupFile(filename, content, mime) {
   try {
     const file = new File([content], filename, { type: mime })
     if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Focus 백업', text: '파일에 저장을 선택하면 iCloud Drive에 보관할 수 있습니다.' })
+      await navigator.share({ files: [file], title: 'Focus backup', text: 'Choose Save to Files to keep it in iCloud Drive.' })
       return true
     }
   } catch (error) {
@@ -132,7 +138,7 @@ function ConfirmModal({ title, message, confirmLabel, danger = false, onConfirm,
       <div className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
         <h2 id="confirm-title">{title}</h2>
         <p>{message}</p>
-        <div><button type="button" className="secondary-action" onClick={onCancel}>취소</button><button type="button" className={danger ? 'danger-action' : 'primary-action'} onClick={onConfirm}>{confirmLabel}</button></div>
+        <div><button type="button" className="secondary-action" onClick={onCancel}>Cancel</button><button type="button" className={danger ? 'danger-action' : 'primary-action'} onClick={onConfirm}>{confirmLabel}</button></div>
       </div>
     </div>
   )
@@ -156,9 +162,36 @@ export default function App() {
   const [pendingImportSettings, setPendingImportSettings] = useState(null)
   const [lastBackupAt, setLastBackupAt] = useState(() => Number(localStorage.getItem('focus-last-backup')) || 0)
   const [storagePersisted, setStoragePersisted] = useState(null)
+  const [syncState, setSyncState] = useState(() => ({
+    enabled: SyncApi.isEnabled(),
+    hasToken: Boolean(SyncApi.getToken()),
+    contextId: SyncApi.getContextId(),
+    contextLabel: SyncApi.getContextLabel(),
+    lastSyncAt: SyncApi.getLastSyncAt(),
+    lastRemoteBackupAt: SyncApi.getLastRemoteBackupAt(),
+    pendingCount: SyncApi.pendingEventCount(),
+    lastError: '',
+    busy: false,
+  }))
+  const [tokenDraft, setTokenDraft] = useState('')
+  const [labelDraft, setLabelDraft] = useState(() => SyncApi.getContextLabel())
   const importRef = useRef(null)
   const completionRef = useRef(false)
   const toastTimerRef = useRef(null)
+
+  const readSyncState = useCallback((patch = {}) => {
+    setSyncState((current) => ({
+      ...current,
+      enabled: SyncApi.isEnabled(),
+      hasToken: Boolean(SyncApi.getToken()),
+      contextId: SyncApi.getContextId(),
+      contextLabel: SyncApi.getContextLabel(),
+      lastSyncAt: SyncApi.getLastSyncAt(),
+      lastRemoteBackupAt: SyncApi.getLastRemoteBackupAt(),
+      pendingCount: SyncApi.pendingEventCount(),
+      ...patch,
+    }))
+  }, [])
 
   const showToast = useCallback((message) => {
     setToast(message)
@@ -261,9 +294,25 @@ export default function App() {
     setTimer(nextTimer)
     if (completed && settings.autoStart) primeAudio()
     setTask('')
-    showToast(completed ? '세션 완료 · 기록을 저장했습니다.' : '종료한 시간을 기록했습니다.')
+    showToast(completed ? 'Session complete — saved.' : 'Logged the time you finished.')
     completionRef.current = false
-  }, [settings, showToast, subject, task, timer])
+
+    // 기록은 이미 기기에 저장됐습니다. 동기화는 그 뒤에 조용히 따라갑니다.
+    // 실패해도 화면 흐름을 막지 않고, 보내지 못한 이벤트는 큐에 남습니다.
+    const event = SyncApi.sessionToEvent(session)
+    if (event) SyncApi.queueEvent(event)
+    if (SyncApi.isReady()) {
+      try {
+        await SyncApi.flushEvents()
+        await SyncApi.pushData({ settings, sessions: records })
+        readSyncState({ lastError: '' })
+      } catch (error) {
+        readSyncState({ lastError: SyncApi.describeError(error) })
+      }
+    } else {
+      readSyncState()
+    }
+  }, [readSyncState, settings, showToast, subject, task, timer])
 
   useEffect(() => {
     if (timer.status !== 'running') return undefined
@@ -330,18 +379,101 @@ export default function App() {
     setTimer((current) => current.status === 'idle'
       ? { ...current, totalSeconds: secondsFor(current.mode, nextSettings), remainingSeconds: secondsFor(current.mode, nextSettings) }
       : current)
-    showToast('설정이 저장되었습니다.')
+    showToast('Settings saved.')
+  }
+
+  const buildBackup = useCallback(() => ({
+    app: 'Focus', version: 1, exportedAt: Date.now(), settings, sessions,
+  }), [settings, sessions])
+
+  const runSync = useCallback(async ({ manual = false } = {}) => {
+    if (!SyncApi.isReady()) return
+    setSyncState((current) => ({ ...current, busy: true }))
+    try {
+      await SyncApi.flushEvents()
+      await SyncApi.pushData({ settings, sessions })
+      // 다른 기기가 올린 세션을 받아 합칩니다. 같은 id 는 endedAt 이 최신인 쪽이 이깁니다.
+      const remote = await SyncApi.pullSessions()
+      if (Array.isArray(remote) && remote.length) {
+        const merged = new Map(sessions.map((item) => [item.id, item]))
+        remote.forEach((item) => {
+          const previous = merged.get(item.id)
+          if (!previous || Number(item.endedAt) > Number(previous.endedAt)) merged.set(item.id, item)
+        })
+        if (merged.size !== sessions.length) {
+          await replaceSessions([...merged.values()])
+          await refreshSessions()
+        }
+      }
+      readSyncState({ lastError: '', busy: false })
+      if (manual) showToast('Synced.')
+    } catch (error) {
+      readSyncState({ lastError: SyncApi.describeError(error), busy: false })
+      if (manual) showToast(SyncApi.describeError(error))
+    }
+  }, [readSyncState, refreshSessions, sessions, settings, showToast])
+
+  const backupToGitHub = async () => {
+    if (!SyncApi.isReady()) return
+    setSyncState((current) => ({ ...current, busy: true }))
+    try {
+      await SyncApi.backupNow(buildBackup())
+      readSyncState({ lastError: '', busy: false })
+      showToast('Backed up to GitHub.')
+    } catch (error) {
+      readSyncState({ lastError: SyncApi.describeError(error), busy: false })
+      showToast(SyncApi.describeError(error))
+    }
+  }
+
+  const saveSyncToken = () => {
+    const value = tokenDraft.trim()
+    if (!value) {
+      showToast('Paste a token first.')
+      return
+    }
+    SyncApi.saveToken(value)
+    setTokenDraft('')
+    readSyncState({ lastError: '' })
+    showToast('Token saved.')
+  }
+
+  const clearSyncToken = () => {
+    SyncApi.clearToken()
+    SyncApi.setEnabled(false)
+    setTokenDraft('')
+    readSyncState({ lastError: '' })
+    showToast('Token cleared. Sync is off.')
+  }
+
+  const toggleSync = async (enabled) => {
+    if (enabled && !SyncApi.getToken()) {
+      showToast('Save a GitHub token first.')
+      return
+    }
+    if (enabled) {
+      await SyncApi.ensureContext()
+      setLabelDraft(SyncApi.getContextLabel())
+    }
+    SyncApi.setEnabled(enabled)
+    readSyncState({ lastError: '' })
+    if (enabled) runSync({ manual: true })
+  }
+
+  const saveContextLabel = () => {
+    SyncApi.setContextLabel(labelDraft)
+    readSyncState()
   }
 
   const exportBackup = async () => {
-    const backup = JSON.stringify({ app: 'Focus', version: 1, exportedAt: Date.now(), settings, sessions }, null, 2)
+    const backup = JSON.stringify(buildBackup(), null, 2)
     const filename = `focus-backup-${new Date().toISOString().slice(0, 10)}.json`
     const saved = await exportBackupFile(filename, backup, 'application/json')
     if (!saved) return
     const timestamp = Date.now()
     localStorage.setItem('focus-last-backup', String(timestamp))
     setLastBackupAt(timestamp)
-    showToast('백업 파일을 만들었습니다.')
+    showToast('Backup file created.')
   }
 
   const importBackup = async (event) => {
@@ -357,32 +489,32 @@ export default function App() {
       await refreshSessions()
       if (backup.settings && typeof backup.settings === 'object') {
         setPendingImportSettings(backup.settings)
-        showToast('기록을 가져왔습니다. 설정을 덮어쓸지 확인해 주세요.')
+        showToast('Records imported. Confirm whether to overwrite settings.')
       } else {
-        showToast('백업 기록을 가져왔습니다.')
+        showToast('Backup records imported.')
       }
     } catch {
-      showToast('올바른 Focus 백업 파일이 아닙니다.')
+      showToast('That is not a valid Focus backup file.')
     }
   }
 
   const applyImportedSettings = () => {
     setSettings({ ...DEFAULT_SETTINGS, ...pendingImportSettings })
     setPendingImportSettings(null)
-    showToast('설정을 백업 값으로 덮어썼습니다.')
+    showToast('Settings replaced with the backup values.')
   }
 
   const removeSession = async (id) => {
     await deleteSession(id)
     await refreshSessions()
-    showToast('기록을 삭제했습니다.')
+    showToast('Record deleted.')
   }
 
   const removeAll = async () => {
     await clearSessions()
     setSessions([])
     setConfirmClear(false)
-    showToast('모든 기록을 삭제했습니다.')
+    showToast('All records deleted.')
   }
 
   return (
@@ -417,12 +549,31 @@ export default function App() {
           onClear={() => setConfirmClear(true)}
           lastBackupAt={lastBackupAt}
           storagePersisted={storagePersisted}
+          sync={{
+            ...syncState,
+            canSync: syncState.enabled && syncState.hasToken && Boolean(syncState.contextId),
+            tokenDraft,
+            tokenHint: syncState.hasToken ? 'Saved token is in use' : '',
+            onTokenDraft: setTokenDraft,
+            onSaveToken: saveSyncToken,
+            onClearToken: clearSyncToken,
+            onToggleEnabled: toggleSync,
+            labelDraft,
+            onLabelDraft: setLabelDraft,
+            onSaveLabel: saveContextLabel,
+            lastSyncLabel: formatMoment(syncState.lastSyncAt),
+            remoteBackupLabel: syncState.lastRemoteBackupAt
+              ? `Last backup ${formatMoment(syncState.lastRemoteBackupAt)}`
+              : 'Keeps the last 12 daily backups',
+            onSyncNow: () => runSync({ manual: true }),
+            onBackupToGitHub: backupToGitHub,
+          }}
         />
       )}
       <input ref={importRef} className="hidden-file" type="file" accept=".json,application/json" onChange={importBackup} />
       <div className={`toast ${toast ? 'show' : ''}`} role="status" aria-live="polite">{toast}</div>
-      {confirmClear ? <ConfirmModal title="모든 기록을 삭제할까요?" message="집중 기록은 복구할 수 없습니다. 필요한 경우 먼저 iCloud 백업을 저장하세요." confirmLabel="모두 삭제" danger onCancel={() => setConfirmClear(false)} onConfirm={removeAll} /> : null}
-      {pendingImportSettings ? <ConfirmModal title="설정도 덮어쓸까요?" message="이 백업 파일에는 설정 값도 들어 있습니다. 지금 설정을 백업 값으로 바꾸면 되돌릴 수 없습니다." confirmLabel="설정 덮어쓰기" onCancel={() => setPendingImportSettings(null)} onConfirm={applyImportedSettings} /> : null}
+      {confirmClear ? <ConfirmModal title="Delete all records?" message="Focus records cannot be recovered. Save a backup first if you might need them." confirmLabel="Delete all" danger onCancel={() => setConfirmClear(false)} onConfirm={removeAll} /> : null}
+      {pendingImportSettings ? <ConfirmModal title="Overwrite settings too?" message="This backup file also contains settings. Replacing your current settings cannot be undone." confirmLabel="Overwrite settings" onCancel={() => setPendingImportSettings(null)} onConfirm={applyImportedSettings} /> : null}
     </>
   )
 }

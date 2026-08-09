@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Focus",
   "short_name": "Focus",
-  "description": "집중 시간과 휴식을 기록하는 오프라인 포커스 타이머",
+  "description": "An offline focus timer that logs your focus and break sessions",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

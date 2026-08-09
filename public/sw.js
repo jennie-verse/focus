@@ -1,4 +1,4 @@
-const VERSION = '2026.08.09-round2a'
+const VERSION = '2026.08.09-sync1'
 const CACHE = `focus-${VERSION}`
 
 const CORE_ASSETS = [
@@ -12,10 +12,24 @@ const CORE_ASSETS = [
   './fonts/lexend-700.woff2',
 ]
 
+// 공용 동기화 모듈. 다른 저장소에 있지만 같은 오리진이라 캐시할 수 있습니다.
+// CORE_ASSETS 와 달리 하나씩 담습니다. addAll 은 하나만 실패해도 설치 전체가
+// 실패하는데, 이 파일이 잠깐 안 열린다고 앱이 설치되지 못하면 안 됩니다.
+const OPTIONAL_ASSETS = [
+  '../shared/v1/sync.js',
+]
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE)
     await cache.addAll(CORE_ASSETS)
+    await Promise.all(OPTIONAL_ASSETS.map(async (path) => {
+      try {
+        await cache.add(new URL(path, self.registration.scope))
+      } catch {
+        // 다음 실행 때 fetch 핸들러가 다시 담습니다.
+      }
+    }))
 
     const response = await fetch('./index.html', { cache: 'no-store' })
     if (response.ok) {

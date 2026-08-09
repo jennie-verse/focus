@@ -44,3 +44,45 @@
 ## 기록 삭제
 
 설정 화면 맨 아래 **모든 기록 삭제**는 되돌릴 수 없습니다. 확인 창이 한 번 더 뜨니, 필요하면 삭제 전에 백업부터 저장하세요.
+
+---
+
+## 동기화 켜기 (Sync)
+
+동기화는 처음에 꺼져 있습니다. 켜지 않아도 앱은 그대로 다 됩니다.
+켜면 기록이 내 비공개 저장소에도 함께 저장되어, 다른 기기와 Atlas·Trace에서 볼 수 있습니다.
+
+1. 설정(Settings)을 엽니다.
+2. **동기화(Sync)** 항목의 **GitHub token** 칸에 토큰을 붙여 넣고 **Save token**을 누릅니다.
+   - `webapp-data` 저장소에 대한 Contents: Read and write 권한이 필요합니다.
+   - Tide·Trace·Atlas와 **같은 토큰**을 씁니다. 한 곳에서 저장하면 나머지도 함께 바뀝니다.
+3. **Sync this device** 스위치를 켭니다.
+4. **Name for this device**에 이 기기를 알아볼 이름을 적습니다. 예: `iPhone 홈 화면`
+   - 같은 iPhone이라도 Safari와 홈 화면에 추가한 앱은 **서로 다른 기기로 셉니다.**
+     둘 다 쓰신다면 각각 켜고 이름을 다르게 주세요.
+5. **Last synced**에 시간이 뜨고 **Last error**가 `No errors`이면 준비가 끝났습니다.
+
+### 언제 올라가나요
+
+집중 세션을 완료하면 그때 자동으로 올라갑니다. 화면이 멈추지 않고, 실패해도 기록은 기기에 남습니다.
+보내지 못한 것은 **Waiting to send**에 개수로 보이고, 다음에 성공할 때 함께 올라갑니다.
+직접 올리고 싶으면 **Sync now**를 누르세요.
+
+올라가는 것은 **완료한 집중 세션**뿐입니다. 휴식은 올라가지 않습니다.
+과목·작업 이름은 이벤트에 넣지 않습니다.
+
+### GitHub에 백업하기 (Back up to GitHub)
+
+설정 → 데이터(Data) → **Back up to GitHub**을 누르면 그날 날짜로 백업이 저장됩니다.
+같은 날 다시 누르면 그날 파일을 덮어쓰고, **최근 12개**만 남습니다.
+
+기기 파일로 내보내는 **Save a backup file**은 그대로 있습니다. 둘 다 쓰셔도 됩니다.
+
+### 잘 안 될 때
+
+설정 → 동기화(Sync) → **Last error**를 확인하세요.
+
+- `Token may be expired or lacks permission` — 토큰이 만료됐거나 권한이 부족합니다. 새 토큰을 저장하세요.
+- `Network unavailable. Changes are queued.` — 연결이 없습니다. 기록은 기기에 남아 있고 나중에 다시 보냅니다.
+- `Another device wrote first. Queued to send again.` — 다른 기기가 먼저 썼습니다. 다시 시도하면 합쳐집니다.
+- `The file is too large to sync.` — 파일이 너무 큽니다. 기기 파일로 내보내세요.

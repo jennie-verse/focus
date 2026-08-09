@@ -13,9 +13,9 @@ export function formatDuration(totalSeconds, compact = false) {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   if (compact) {
-    if (hours > 0) return minutes > 0 ? `${hours}시간 ${minutes}분` : `${hours}시간`
-    if (seconds > 0 && minutes === 0) return '<1분'
-    return `${minutes}분`
+    if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+    if (seconds > 0 && minutes === 0) return '<1m'
+    return `${minutes}m`
   }
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 }
@@ -48,8 +48,8 @@ export function getRecentDays(sessions, count = 7) {
     return {
       key,
       date,
-      weekday: new Intl.DateTimeFormat('ko-KR', { weekday: 'short' }).format(date),
-      dateLabel: new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric' }).format(date),
+      weekday: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date),
+      dateLabel: new Intl.DateTimeFormat('en-US', { month: 'numeric', day: 'numeric' }).format(date),
       ...total,
     }
   })
@@ -78,7 +78,7 @@ export function getStreak(sessions) {
 export function formatBackupAge(lastBackupAt) {
   if (!lastBackupAt) return null
   const days = Math.max(0, Math.floor((Date.now() - lastBackupAt) / DAY_MS))
-  const label = days === 0 ? '오늘' : days === 1 ? '어제' : `${days}일 전`
+  const label = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`
   return { days, label, overdue: days >= 7 }
 }
 

@@ -245,12 +245,40 @@ button:disabled { cursor: default; opacity: 0.55; }
 .toggle input:checked + i { background: var(--accent); }
 .toggle input:checked + i::after { transform: translateX(20px); }
 .toggle input:focus-visible + i { outline: 3px solid var(--sky-strong); outline-offset: 2px; }
+.sync-group { padding: 16px; }
+.sync-group h2 { margin: 0 0 8px; font-size: calc(18px * var(--scale)); }
+.sync-group > p { margin: 0 0 15px; color: var(--muted); font-size: calc(12px * var(--scale)); line-height: 1.65; }
+.sync-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; font-size: calc(12px * var(--scale)); font-weight: 700; }
+.sync-field input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  /* iOS 는 16px 미만 입력창에 자동으로 확대를 겁니다. 줄이지 않습니다. */
+  font-size: 16px;
+  font-weight: 400;
+}
+.sync-field input:focus-visible { outline: 3px solid var(--sky-strong); outline-offset: 2px; }
+.sync-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 9px; margin-bottom: 6px; }
+.sync-group .toggle { margin: 0 -16px; padding-left: 16px; padding-right: 16px; border-top: 1px solid var(--border); }
+.sync-status { display: grid; gap: 7px; margin: 14px 0; }
+.sync-status > div { display: flex; justify-content: space-between; gap: 12px; }
+.sync-status dt { color: var(--subtle); font-size: calc(11px * var(--scale)); }
+.sync-status dd { margin: 0; overflow-wrap: anywhere; color: var(--muted); font-size: calc(11px * var(--scale)); font-weight: 700; text-align: right; }
+.sync-status dd.has-error { color: var(--danger); }
+.sync-group .secondary-action { width: 100%; min-height: 46px; }
+.sync-group .secondary-action:disabled, .data-button:disabled { opacity: 0.5; }
+
 .data-group { padding: 16px; }
 .data-group h2 { margin: 0 0 8px; font-size: calc(18px * var(--scale)); }
 .data-group > p { margin: 0 0 15px; color: var(--muted); font-size: calc(12px * var(--scale)); line-height: 1.65; }
 .storage-protection-line { margin: -6px 0 15px; color: var(--subtle); font-size: calc(10px * var(--scale)); line-height: 1.6; }
 .data-button { display: grid; grid-template-columns: 28px minmax(0, 1fr) 18px; align-items: center; gap: 10px; width: 100%; min-height: 64px; margin-top: 9px; padding: 9px 12px; border: 1px solid #c9e7fa; border-radius: 14px; color: #326f98; background: var(--sky); text-align: left; }
 .data-button.lilac { border-color: #d9c8f3; color: #674394; background: var(--lilac); }
+.data-button.pink { border-color: var(--border); color: var(--accent); background: var(--pink-soft); }
 .data-button svg { width: 23px; }
 .data-button span { display: flex; flex-direction: column; gap: 3px; font-size: calc(13px * var(--scale)); font-weight: 700; }
 .data-button small { font-size: calc(9px * var(--scale)); font-weight: 400; opacity: 0.78; }
