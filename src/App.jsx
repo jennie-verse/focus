@@ -208,13 +208,6 @@ export default function App() {
   }, [settings.fontScale])
 
   useEffect(() => {
-    if (!settings.notify || !('Notification' in window) || Notification.permission !== 'default') return
-    Notification.requestPermission().then((permission) => {
-      if (permission !== 'granted') setSettings((current) => ({ ...current, notify: false }))
-    })
-  }, [settings.notify])
-
-  useEffect(() => {
     saveActiveTimer(timer)
     document.title = timer.status === 'idle' ? 'Focus' : `${formatTimer(timer.remainingSeconds)} · Focus`
   }, [timer])

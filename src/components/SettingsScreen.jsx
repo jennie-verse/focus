@@ -69,7 +69,17 @@ export default function SettingsScreen({ settings, onChange, onBack, onExport, o
         <section className="settings-group toggle-group" aria-label="알림 설정">
           <Toggle label="완료 알림음" checked={settings.sound} onChange={(value) => update('sound', value)} />
           <Toggle label="진동" checked={settings.vibration} onChange={(value) => update('vibration', value)} />
-          <Toggle label="화면 알림 (잠금·백그라운드 포함)" checked={settings.notify} onChange={(value) => update('notify', value)} />
+          <Toggle
+            label="화면 알림 (잠금·백그라운드 포함)"
+            checked={settings.notify}
+            onChange={(value) => {
+              if (value && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                Notification.requestPermission().then((permission) => update('notify', permission === 'granted'))
+              } else {
+                update('notify', value)
+              }
+            }}
+          />
           {settings.notify && typeof Notification !== 'undefined' && Notification.permission === 'denied' && (
             <p className="notify-blocked-hint">iOS 설정 &gt; 알림에서 Focus의 알림이 꺼져 있어요. 켜야 알림이 표시됩니다.</p>
           )}
