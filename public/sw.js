@@ -1,4 +1,4 @@
-const VERSION = '2026.08.08-fontscale1'
+const VERSION = '2026.08.08-fontfix1'
 const CACHE = `focus-${VERSION}`
 
 const CORE_ASSETS = [
