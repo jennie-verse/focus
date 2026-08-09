@@ -3,6 +3,7 @@ import TimerScreen from './components/TimerScreen.jsx'
 import SettingsScreen from './components/SettingsScreen.jsx'
 import {
   DEFAULT_SETTINGS,
+  FONT_SCALES,
   addSession,
   clearActiveTimer,
   clearSessions,
@@ -200,6 +201,11 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
+
+  useEffect(() => {
+    const scale = FONT_SCALES[settings.fontScale] || 1
+    document.documentElement.style.setProperty('--scale', scale)
+  }, [settings.fontScale])
 
   useEffect(() => {
     if (!settings.notify || !('Notification' in window) || Notification.permission !== 'default') return

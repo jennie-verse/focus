@@ -14,7 +14,14 @@ export const DEFAULT_SETTINGS = Object.freeze({
   vibration: true,
   notify: true,
   autoStart: false,
+  // Text size step, 1-6. 4 is today's default look (unchanged); see FONT_SCALES in App.jsx.
+  fontScale: 4,
 })
+
+// Step 4 = 1.0 = the app's existing default look. The other steps scale
+// proportionally around that same baseline (not the generic webapp-standard
+// px values), so the app you already use does not shift size at step 4.
+export const FONT_SCALES = Object.freeze({ 1: 0.5, 2: 0.667, 3: 0.833, 4: 1, 5: 1.167, 6: 1.417 })
 
 function safeParse(value, fallback) {
   try {

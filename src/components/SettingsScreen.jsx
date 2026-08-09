@@ -51,6 +51,21 @@ export default function SettingsScreen({ settings, onChange, onBack, onExport, o
           ))}
         </section>
 
+        <section className="settings-group display-group" aria-label="화면 설정">
+          <div className="setting-row">
+            <span className="setting-icon sky"><ClockIcon /></span>
+            <strong>글자 크기</strong>
+            <div className="stepper">
+              <button type="button" aria-label="글자 작게" onClick={() => update('fontScale', Math.max(1, (settings.fontScale ?? 4) - 1))}>−</button>
+              <span>{settings.fontScale ?? 4}</span>
+              <button type="button" aria-label="글자 크게" onClick={() => update('fontScale', Math.min(6, (settings.fontScale ?? 4) + 1))}>＋</button>
+            </div>
+          </div>
+          {(settings.fontScale ?? 4) !== 4 && (
+            <button type="button" className="secondary-action" style={{ margin: '0 14px 14px' }} onClick={() => update('fontScale', 4)}>기본 크기로 되돌리기</button>
+          )}
+        </section>
+
         <section className="settings-group toggle-group" aria-label="알림 설정">
           <Toggle label="완료 알림음" checked={settings.sound} onChange={(value) => update('sound', value)} />
           <Toggle label="진동" checked={settings.vibration} onChange={(value) => update('vibration', value)} />
