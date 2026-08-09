@@ -153,6 +153,7 @@ export default function App() {
   const [screen, setScreen] = useState('timer')
   const [toast, setToast] = useState('')
   const [confirmClear, setConfirmClear] = useState(false)
+  const [pendingImportSettings, setPendingImportSettings] = useState(null)
   const [lastBackupAt, setLastBackupAt] = useState(() => Number(localStorage.getItem('focus-last-backup')) || 0)
   const [storagePersisted, setStoragePersisted] = useState(null)
   const importRef = useRef(null)
@@ -353,14 +354,22 @@ export default function App() {
       const merged = new Map(sessions.map((session) => [session.id, session]))
       backup.sessions.forEach((session) => session?.id && merged.set(session.id, session))
       await replaceSessions([...merged.values()])
-      if (backup.settings && typeof backup.settings === 'object') {
-        setSettings({ ...DEFAULT_SETTINGS, ...backup.settings })
-      }
       await refreshSessions()
-      showToast('백업 기록을 가져왔습니다.')
+      if (backup.settings && typeof backup.settings === 'object') {
+        setPendingImportSettings(backup.settings)
+        showToast('기록을 가져왔습니다. 설정을 덮어쓸지 확인해 주세요.')
+      } else {
+        showToast('백업 기록을 가져왔습니다.')
+      }
     } catch {
       showToast('올바른 Focus 백업 파일이 아닙니다.')
     }
+  }
+
+  const applyImportedSettings = () => {
+    setSettings({ ...DEFAULT_SETTINGS, ...pendingImportSettings })
+    setPendingImportSettings(null)
+    showToast('설정을 백업 값으로 덮어썼습니다.')
   }
 
   const removeSession = async (id) => {
@@ -413,6 +422,7 @@ export default function App() {
       <input ref={importRef} className="hidden-file" type="file" accept=".json,application/json" onChange={importBackup} />
       <div className={`toast ${toast ? 'show' : ''}`} role="status" aria-live="polite">{toast}</div>
       {confirmClear ? <ConfirmModal title="모든 기록을 삭제할까요?" message="집중 기록은 복구할 수 없습니다. 필요한 경우 먼저 iCloud 백업을 저장하세요." confirmLabel="모두 삭제" danger onCancel={() => setConfirmClear(false)} onConfirm={removeAll} /> : null}
+      {pendingImportSettings ? <ConfirmModal title="설정도 덮어쓸까요?" message="이 백업 파일에는 설정 값도 들어 있습니다. 지금 설정을 백업 값으로 바꾸면 되돌릴 수 없습니다." confirmLabel="설정 덮어쓰기" onCancel={() => setPendingImportSettings(null)} onConfirm={applyImportedSettings} /> : null}
     </>
   )
 }

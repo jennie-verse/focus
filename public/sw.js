@@ -1,4 +1,4 @@
-const VERSION = '2026.08.08-cachescope1'
+const VERSION = '2026.08.09-round2a'
 const CACHE = `focus-${VERSION}`
 
 const CORE_ASSETS = [
