@@ -140,6 +140,10 @@ export default function SettingsScreen({
 
           <dl className="sync-status">
             <div>
+              <dt>App version</dt>
+              <dd>{sync.appBuild}</dd>
+            </div>
+            <div>
               <dt>File name</dt>
               <dd>{sync.contextId || 'Not set up yet'}</dd>
             </div>

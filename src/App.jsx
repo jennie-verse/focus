@@ -18,6 +18,14 @@ import {
 import * as SyncApi from './sync.js'
 import { formatTimer, getRecentDays, getStreak, getTodayStats } from './stats.js'
 
+// 화면에 보여 주는 빌드 이름입니다. public/sw.js 의 VERSION 과 반드시 같아야 합니다
+// (테스트가 두 값이 어긋나면 실패합니다).
+//
+// 왜 화면에 띄우는가: Service Worker 가 캐시를 먼저 돌려주기 때문에, 새 버전을 배포해도
+// 앱을 처음 열 때는 **옛 코드가 그대로 돕니다.** 2026-08-09 에 이미 고친 버그가 이 때문에
+// 한 번 더 데이터를 지웠습니다. 지금 무엇이 돌고 있는지 눈으로 확인할 수 있어야 합니다.
+const APP_BUILD = '2026.08.09-sync6'
+
 const MODE_SETTING = {
   focus: 'focusMinutes',
   short: 'shortMinutes',
@@ -587,6 +595,7 @@ export default function App() {
           storagePersisted={storagePersisted}
           sync={{
             ...syncState,
+            appBuild: APP_BUILD,
             canSync: syncState.enabled && syncState.hasToken && Boolean(syncState.contextId),
             tokenDraft,
             tokenHint: syncState.hasToken ? 'Saved token is in use' : '',
