@@ -306,24 +306,50 @@ function dataPath(contextId) {
   return Shared.contextFilePath(`${NAMESPACE}/data.json`, contextId)
 }
 
-/** 이 기기의 설정·세션 전체를 한 파일로 올립니다. 기기마다 파일이 분리됩니다. */
+/** 이 기기의 설정·세션 전체를 한 파일로 올립니다. 기기마다 파일이 분리됩니다.
+
+    **올리기는 절대로 기록을 줄이지 않습니다.** 원격에 이미 있던 세션과 합집합을 만들어 씁니다.
+    화면 상태가 아직 안 채워졌거나 IndexedDB 가 잠깐 안 열리는 등 어떤 이유로든 빈 목록이
+    들어와도, 원격 기록이 지워지지 않게 하기 위한 안전장치입니다.
+    (2026-08-09: 빈 목록이 올라가 원격 세션 3건이 실제로 사라졌습니다.)
+
+    이 규칙 때문에 한 기기에서 지운 세션은 원격에서 사라지지 않습니다.
+    지우기를 기기 간에 맞추려면 tide 처럼 tombstone 을 따로 둬야 합니다. */
 export async function pushData({ settings, sessions }) {
   if (!isReady()) return false
   const cfg = config()
-  const path = dataPath(getContextId())
+  const contextId = getContextId()
+  const path = dataPath(contextId)
+
+  const existing = await Shared.readFile(cfg, path)
+  const merged = new Map()
+  if (existing.exists) {
+    const previous = parseJson(existing.content, null)
+    const previousSessions = previous?.data?.sessions
+    if (Array.isArray(previousSessions)) {
+      previousSessions.forEach((item) => {
+        if (item && typeof item.id === 'string') merged.set(item.id, item)
+      })
+    }
+  }
+  ;(Array.isArray(sessions) ? sessions : []).forEach((item) => {
+    if (!item || typeof item.id !== 'string') return
+    const previous = merged.get(item.id)
+    if (!previous || Number(item.endedAt) >= Number(previous.endedAt)) merged.set(item.id, item)
+  })
+
   const body = `${JSON.stringify({
     v: 1,
     app: NAMESPACE,
-    context: getContextId(),
+    context: contextId,
     updatedAt: new Date().toISOString(),
-    data: { settings, sessions },
+    data: { settings, sessions: [...merged.values()] },
   }, null, 2)}\n`
 
   if (body.length > MAX_FILE_BYTES) {
     throw tooLarge('The focus data file is too large to sync.')
   }
 
-  const existing = await Shared.readFile(cfg, path)
   await Shared.writeFile(cfg, path, body, {
     sha: existing.sha || undefined,
     message: `focus: update ${path}`,

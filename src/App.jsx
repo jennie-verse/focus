@@ -392,31 +392,43 @@ export default function App() {
     setSyncState((current) => ({ ...current, busy: true }))
     try {
       await SyncApi.flushEvents()
-      await SyncApi.pushData({ settings, sessions })
-      // 다른 기기가 올린 세션을 받아 합칩니다. 같은 id 는 endedAt 이 최신인 쪽이 이깁니다.
+
+      // 로컬 기록은 화면 상태가 아니라 저장소에서 새로 읽습니다.
+      // 화면 상태(sessions)는 앱을 막 열었을 때 아직 비어 있습니다. 그 빈 배열을 올려서
+      // 원격에 있던 기록 3건이 실제로 지워졌습니다. 같은 실수를 구조적으로 막습니다.
+      const local = await getSessions()
+
+      // 받아오기를 먼저 합니다. 올리기가 먼저면 아직 받지 못한 기록을 덮어씁니다.
       const remote = await SyncApi.pullSessions()
-      if (Array.isArray(remote) && remote.length) {
-        const merged = new Map(sessions.map((item) => [item.id, item]))
+
+      // 합집합만 만듭니다. 같은 id 는 endedAt 이 최신인 쪽이 이깁니다.
+      // 이 자리에서 항목이 줄어드는 경우는 없습니다.
+      const merged = new Map(local.map((item) => [item.id, item]))
+      if (Array.isArray(remote)) {
         remote.forEach((item) => {
+          if (!item || typeof item.id !== 'string') return
           const previous = merged.get(item.id)
           if (!previous || Number(item.endedAt) > Number(previous.endedAt)) merged.set(item.id, item)
         })
-        if (merged.size !== sessions.length) {
-          const mergedSessions = [...merged.values()]
-          await replaceSessions(mergedSessions)
-          await refreshSessions()
-          // 받아온 것을 이 기기 파일에도 바로 반영합니다. 안 그러면 다음 세션을 끝낼 때까지
-          // 원격에는 빠진 채로 남고, 그 사이 다른 기기가 읽으면 기록이 없어 보입니다.
-          await SyncApi.pushData({ settings, sessions: mergedSessions })
-        }
       }
+      const mergedSessions = [...merged.values()]
+
+      // 늘어났을 때만 로컬을 다시 씁니다. replaceSessions 는 저장소를 비우고 새로 쓰므로
+      // 줄어든 목록을 넘기면 그대로 유실됩니다.
+      if (mergedSessions.length > local.length) {
+        await replaceSessions(mergedSessions)
+        await refreshSessions()
+      }
+
+      await SyncApi.pushData({ settings, sessions: mergedSessions })
       readSyncState({ lastError: '', busy: false })
       if (manual) showToast('Synced.')
     } catch (error) {
       readSyncState({ lastError: SyncApi.describeError(error), busy: false })
       if (manual) showToast(SyncApi.describeError(error))
     }
-  }, [readSyncState, refreshSessions, sessions, settings, showToast])
+    // sessions(화면 상태)는 일부러 쓰지 않습니다. 저장소에서 새로 읽기 때문입니다.
+  }, [readSyncState, refreshSessions, settings, showToast])
 
   // 앱을 열 때 한 번 원격을 받아 옵니다.
   //

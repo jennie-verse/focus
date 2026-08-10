@@ -1,4 +1,4 @@
-const VERSION = '2026.08.09-sync4'
+const VERSION = '2026.08.09-sync5'
 const CACHE = `focus-${VERSION}`
 
 const CORE_ASSETS = [
