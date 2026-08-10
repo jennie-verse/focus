@@ -178,6 +178,7 @@ export default function App() {
   const importRef = useRef(null)
   const completionRef = useRef(false)
   const toastTimerRef = useRef(null)
+  const startupSyncRef = useRef(false)
 
   const readSyncState = useCallback((patch = {}) => {
     setSyncState((current) => ({
@@ -401,8 +402,12 @@ export default function App() {
           if (!previous || Number(item.endedAt) > Number(previous.endedAt)) merged.set(item.id, item)
         })
         if (merged.size !== sessions.length) {
-          await replaceSessions([...merged.values()])
+          const mergedSessions = [...merged.values()]
+          await replaceSessions(mergedSessions)
           await refreshSessions()
+          // 받아온 것을 이 기기 파일에도 바로 반영합니다. 안 그러면 다음 세션을 끝낼 때까지
+          // 원격에는 빠진 채로 남고, 그 사이 다른 기기가 읽으면 기록이 없어 보입니다.
+          await SyncApi.pushData({ settings, sessions: mergedSessions })
         }
       }
       readSyncState({ lastError: '', busy: false })
@@ -412,6 +417,22 @@ export default function App() {
       if (manual) showToast(SyncApi.describeError(error))
     }
   }, [readSyncState, refreshSessions, sessions, settings, showToast])
+
+  // 앱을 열 때 한 번 원격을 받아 옵니다.
+  //
+  // 예전에는 동기화를 켜는 순간과 Sync now 를 누를 때만 받아왔습니다. 그런데 세션을 끝낼 때는
+  // 올리기만 하고 받아오지 않아서, 켜는 순간의 통신이 한 번 실패하면 그 기기는 원격에 있는
+  // 기록을 영영 따라잡지 못했습니다(홈 화면 앱을 지웠다 다시 깐 뒤 실제로 그렇게 됐습니다).
+  // 앱을 열 때마다 한 번 맞춰 주면 스스로 회복합니다. 실패해도 조용히 넘어갑니다.
+  useEffect(() => {
+    if (startupSyncRef.current) return
+    if (!SyncApi.isReady() || !navigator.onLine) return
+    startupSyncRef.current = true
+    // 첫 화면이 그려진 뒤에 시작합니다. 이펙트 본문에서 바로 부르면 상태 변경이
+    // 렌더와 겹쳐 불필요한 연쇄 렌더가 생깁니다.
+    const timer = window.setTimeout(() => runSync(), 0)
+    return () => window.clearTimeout(timer)
+  }, [runSync])
 
   const backupToGitHub = async () => {
     if (!SyncApi.isReady()) return
