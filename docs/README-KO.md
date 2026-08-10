@@ -39,7 +39,7 @@ focus는 비공개 저장소 `webapp-data`와 세 가지를 주고받습니다. 
 | 층 | 경로 | 내용 |
 |---|---|---|
 | A. 앱 데이터 | `focus/data.<기기>.json` | 설정 + 세션 전체. 기기 간 동기화 |
-| B. 공용 이벤트 | `events/focus.<기기>.<YYYY-MM>.json` | 완료한 집중 세션. atlas·trace가 읽음 |
+| B. 공용 이벤트 | `events/focus.<기기>.<YYYY-MM>.json` | 1분 이상 집중 세션. atlas·trace가 읽음 |
 | C. 백업 | `backups/focus/YYYY-MM-DD.json` | 복원용 스냅샷. 최근 12개 유지 |
 
 관련 코드는 전부 `src/sync.js`에 있습니다. 화면 코드(`App.jsx`)는 이 모듈의 함수만 부르고
@@ -74,3 +74,30 @@ import * as Shared from 'https://jennie-verse.github.io/shared/v1/sync.js'
 보내지 못한 이벤트는 공용 outbox 대신 `focus.pendingEvents`(localStorage)에 모읍니다.
 공용 outbox는 보낼 본문을 통째로 저장하는데, 이벤트 파일은 보낼 때마다 원격과 다시 합쳐야 해서
 본문을 미리 굳히면 안 되기 때문입니다.
+
+### 이벤트에 넣는 세션 기준
+
+`sessionToEvent()` 한 곳에서 정합니다.
+
+| 조건 | 결과 |
+|---|---|
+| `mode !== 'focus'` | 제외 (휴식은 남기지 않음) |
+| `elapsedSeconds < 60` | 제외 (실수로 눌렀다 끈 경우) |
+| 완주 (`completed: true`) | `kind: session.completed` / `Finished a N-min focus session` |
+| 중간 종료 | `kind: session.ended` / `Focused for N min` |
+
+**중간 종료를 넣는 이유** — focus 앱 자신이 그 시간을 실제 집중 시간으로 셉니다
+(`getTodayStats` 의 합계와 `getStreak` 에 들어갑니다). 완주만 올리면 20분씩 세 번 집중하고
+매번 일찍 끝낸 날이 Trace 에서 빈 날로 보입니다. 앱의 기준과 공용 층의 기준을 맞췄습니다.
+
+`detail` 은 넣지 않습니다. focus 에서 사용자가 적는 것은 과목과 작업 이름뿐인데,
+개인적인 내용일 수 있어 공용 층으로 내보내지 않고 기기와 A층에만 둡니다.
+
+### 컨텍스트 ID 는 만들 때 정해집니다
+
+파일 이름에 들어가므로 이후 바뀌지 않습니다. 그래서 **동기화를 켜기 전에** 받은 이름을
+`ensureContext(name)` 으로 넘겨 ID 에 반영합니다. 설정 화면에서 이름 칸을 스위치 위에 두고,
+켠 뒤에는 "화면 표시만 바뀐다"고 안내하는 이유입니다.
+
+공용 모듈은 이름에서 영문 소문자와 숫자만 남깁니다. 한글만 적으면 `context-…` 가 됩니다.
+사용자에게 보이는 이름(label)에는 한글이 그대로 남습니다.

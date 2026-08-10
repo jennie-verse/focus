@@ -452,8 +452,11 @@ export default function App() {
       return
     }
     if (enabled) {
-      await SyncApi.ensureContext()
-      setLabelDraft(SyncApi.getContextLabel())
+      // 켜기 전에 입력한 이름을 넘겨야 파일 이름이 알아볼 수 있게 만들어집니다.
+      // ID 는 이때 정해지고 이후 바뀌지 않습니다.
+      await SyncApi.ensureContext(labelDraft)
+      if (labelDraft.trim()) SyncApi.setContextLabel(labelDraft)
+      setLabelDraft(SyncApi.getContextLabel() || labelDraft)
     }
     SyncApi.setEnabled(enabled)
     readSyncState({ lastError: '' })

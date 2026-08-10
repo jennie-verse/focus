@@ -36,6 +36,8 @@ const BACKUP_KEEP = 12
 const MAX_FILE_BYTES = 1000000
 // 오프라인 중 쌓인 변경은 오래된 sha 로 재전송되므로 충돌이 정상적으로 납니다.
 const CONFLICT_RETRY = 3
+// 1분 미만 집중은 이벤트로 남기지 않습니다(실수로 눌렀다 끈 경우).
+const MIN_EVENT_SECONDS = 60
 
 function readItem(key, fallback = '') {
   try {
@@ -104,10 +106,17 @@ export function getContextLabel() {
   return Shared.getContextLabel(NAMESPACE) || ''
 }
 
-/** 컨텍스트 ID 를 만듭니다. 이름은 묻지 않고 자동으로 짓고, 나중에 설정에서 바꿉니다.
-    ID 자체는 파일 이름에 들어가므로 한 번 만들면 바뀌지 않습니다. */
-export async function ensureContext() {
-  return Shared.ensureContextId(NAMESPACE)
+/** 컨텍스트 ID 를 만듭니다.
+
+    **ID 는 만들 때 정해지고 이후 바뀌지 않습니다.** 파일 이름에 들어가기 때문입니다.
+    그래서 동기화를 켜기 전에 받은 이름을 여기로 넘겨 ID 에 반영합니다.
+    이름 없이 만들면 `context-3f2a1b9c` 처럼 되어 어느 기기 파일인지 알아볼 수 없습니다.
+
+    공용 모듈은 이름에서 영문 소문자와 숫자만 남깁니다(파일 이름 규칙).
+    한글만 적으면 전부 걸러져 `context-…` 가 되므로, 화면에서 영문 입력을 안내합니다.
+    사용자에게 보이는 이름(label)에는 한글이 그대로 남습니다. */
+export async function ensureContext(preferredName) {
+  return Shared.ensureContextId(NAMESPACE, () => String(preferredName || '').trim())
 }
 
 /** 사용자가 붙이는 이름입니다. 한글도 그대로 저장됩니다. 파일 이름과는 무관합니다. */
@@ -167,17 +176,29 @@ function localIso(timestamp) {
     + `${sign}${pad(Math.trunc(offsetMinutes / 60))}:${pad(offsetMinutes % 60)}`
 }
 
-/** 완료된 집중 세션 하나를 공용 이벤트 모양으로 바꿉니다. 휴식은 넘기지 않습니다. */
+/** 집중 세션 하나를 공용 이벤트 모양으로 바꿉니다. 휴식은 넘기지 않습니다.
+
+    중간에 끝낸 세션도 올립니다. focus 앱 자신이 그 시간을 실제 집중 시간으로 세기
+    때문입니다(오늘 집중 시간 합계와 연속 기록에 들어갑니다). 완주만 올리면
+    20분씩 세 번 집중하고 매번 일찍 끝낸 날이 Trace 에서 빈 날로 보입니다.
+
+    다만 실수로 눌렀다 끈 것까지 남기지 않도록 1분 미만은 제외합니다. */
 export function sessionToEvent(session) {
-  if (!session || session.mode !== 'focus' || !session.completed) return null
-  const minutes = Math.max(1, Math.round((Number(session.elapsedSeconds) || 0) / 60))
+  if (!session || session.mode !== 'focus') return null
+
+  const seconds = Number(session.elapsedSeconds) || 0
+  if (seconds < MIN_EVENT_SECONDS) return null
+
+  const minutes = Math.max(1, Math.round(seconds / 60))
+  const completed = session.completed === true
+
   return {
     v: 1,
     id: `focus:${session.id}`,
     app: 'focus',
-    kind: 'session.completed',
+    kind: completed ? 'session.completed' : 'session.ended',
     at: localIso(session.endedAt),
-    title: `Finished a ${minutes}-min focus session`,
+    title: completed ? `Finished a ${minutes}-min focus session` : `Focused for ${minutes} min`,
     ref: '../focus/',
   }
 }

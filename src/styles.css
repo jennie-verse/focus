@@ -262,6 +262,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   font-weight: 400;
 }
 .sync-field input:focus-visible { outline: 3px solid var(--sky-strong); outline-offset: 2px; }
+.sync-hint { margin: -4px 0 12px; color: var(--subtle); font-size: calc(10px * var(--scale)); line-height: 1.6; }
 .sync-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 9px; margin-bottom: 6px; }
 .sync-group .toggle { margin: 0 -16px; padding-left: 16px; padding-right: 16px; border-top: 1px solid var(--border); }
 .sync-status { display: grid; gap: 7px; margin: 14px 0; }

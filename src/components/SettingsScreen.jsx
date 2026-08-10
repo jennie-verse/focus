@@ -119,23 +119,30 @@ export default function SettingsScreen({
             <button type="button" className="secondary-action" onClick={sync.onClearToken} disabled={!sync.hasToken}>Clear</button>
           </div>
 
+          <label className="sync-field">
+            <span>Name for this device</span>
+            <input
+              type="text"
+              maxLength="40"
+              placeholder="e.g. iPhone Home Screen"
+              value={sync.labelDraft}
+              onChange={(event) => sync.onLabelDraft(event.target.value)}
+              onBlur={sync.onSaveLabel}
+            />
+          </label>
+          <p className="sync-hint">
+            {sync.contextId
+              ? 'The file name below was fixed when sync was first turned on. Renaming changes the display name only.'
+              : 'Set this before turning sync on — letters and numbers from this name become part of the file name.'}
+          </p>
+
           <Toggle label="Sync this device" checked={sync.enabled} onChange={sync.onToggleEnabled} />
 
-          {sync.contextId ? (
-            <label className="sync-field">
-              <span>Name for this device</span>
-              <input
-                type="text"
-                maxLength="40"
-                placeholder="e.g. iPhone Home Screen"
-                value={sync.labelDraft}
-                onChange={(event) => sync.onLabelDraft(event.target.value)}
-                onBlur={sync.onSaveLabel}
-              />
-            </label>
-          ) : null}
-
           <dl className="sync-status">
+            <div>
+              <dt>File name</dt>
+              <dd>{sync.contextId || 'Not set up yet'}</dd>
+            </div>
             <div>
               <dt>Last synced</dt>
               <dd>{sync.lastSyncLabel}</dd>
