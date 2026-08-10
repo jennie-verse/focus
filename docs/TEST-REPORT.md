@@ -81,3 +81,40 @@
 - [ ] 글자 크기 6단계 각각에서 새 Sync 항목이 겹치거나 잘리지 않는지, 터치 영역 44px 이상인지
 - [ ] Service Worker 가 `focus-2026.08.09-sync1` 로 갱신된 뒤 다른 앱 캐시가 남아 있는지
 - [ ] 오프라인에서 앱을 다시 열었을 때 공용 모듈이 캐시에서 로드되어 화면이 뜨는지
+
+---
+
+# 2026-08-09 재검토 — CSP 가 GitHub API 를 막고 있었음
+
+실기기에서 동기화를 켜자 focus 만 `Network unavailable. Changes are queued.` 가 떴습니다.
+같은 기기에서 Atlas 는 `No errors` 였습니다.
+
+## 원인
+
+`index.html` 의 CSP 가 `connect-src 'self'` 였습니다. api.github.com 이 빠져 있어
+브라우저가 요청 자체를 막았고, `fetch()` 가 거부되어 공용 모듈이 network 오류로 보고했습니다.
+
+```
+이전:  connect-src 'self'
+이후:  connect-src 'self' https://api.github.com
+```
+
+Atlas·Tide·Trace 는 처음부터 api.github.com 이 들어 있었습니다. focus 는 2026-08-09 에 CSP 를
+새로 넣으면서 그때 동기화 계획이 없어 빠진 것으로 보입니다.
+
+## 왜 자동 검사에서 못 잡았는가
+
+**jsdom 은 meta 태그 CSP 를 강제하지 않습니다.** 그래서 42건이 전부 통과했는데도 실기기에서만 드러났습니다.
+같은 실수를 막기 위해 테스트에 **CSP 정적 검사**를 넣었습니다. 앞으로 GitHub API 를 쓰는 앱은
+`connect-src` 에 `api.github.com` 이 있는지 파일에서 직접 확인합니다. 현재 44건 전부 통과합니다.
+
+## 다른 앱 점검 결과
+
+| 앱 | connect-src | 비고 |
+|---|---|---|
+| atlas · tide · trace | `'self' https://api.github.com` | 정상 |
+| **focus** | `'self'` → **고침** | 이번 수정 |
+| grove · loom · petal · quill | `'self'` | 아직 동기화를 쓰지 않아 문제 없음. **연결할 때 함께 고쳐야 함** |
+| vault | CSP 없음 | 연결할 때 CSP 를 새로 넣어야 함 |
+
+Service Worker 캐시: `2026.08.09-sync1` → `2026.08.09-sync2`
