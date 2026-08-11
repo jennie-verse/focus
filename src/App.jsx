@@ -93,7 +93,6 @@ async function notifySessionEnd(mode) {
     // Fall through to the page-level Notification below.
   }
   try {
-    // eslint-disable-next-line no-new
     new Notification(title, { body })
   } catch {
     // Notifications are best-effort; sound/vibration already covered the alert.
