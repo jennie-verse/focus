@@ -34,6 +34,7 @@ export default function SettingsScreen({
   lastBackupAt,
   storagePersisted,
   sync,
+  journal,
 }) {
   const update = (key, value) => onChange({ ...settings, [key]: value })
   const backupAge = formatBackupAge(lastBackupAt)
@@ -164,6 +165,43 @@ export default function SettingsScreen({
           <button type="button" className="secondary-action" onClick={sync.onSyncNow} disabled={!sync.canSync || sync.busy}>
             {sync.busy ? 'Syncing…' : 'Sync now'}
           </button>
+        </section>
+
+        <section className="settings-group sync-group journal-group" aria-label="Journal">
+          <h2>Journal</h2>
+          <p>Optionally send complete Focus, Short break, and Long break sessions to Daybook. This stays off until you choose it, even when Sync is on.</p>
+          <Toggle label="Include in journal" checked={journal.enabled} onChange={journal.onToggle} />
+          <dl className="sync-status">
+            <div>
+              <dt>Status</dt>
+              <dd className={journal.errorCode ? 'has-error' : ''}>{journal.errorCode || journal.status}</dd>
+            </div>
+            <div>
+              <dt>Waiting to send</dt>
+              <dd>{journal.pendingCount ? `${journal.pendingCount} record${journal.pendingCount === 1 ? '' : 's'}` : 'Nothing'}</dd>
+            </div>
+          </dl>
+          <h3>Add existing history</h3>
+          <p className="sync-hint">Runs only when you request it. Deleted sessions cannot be recovered.</p>
+          <div className="journal-range">
+            <label className="sync-field">
+              <span>From</span>
+              <input type="date" value={journal.from} onChange={(event) => journal.onFrom(event.target.value)} />
+            </label>
+            <label className="sync-field">
+              <span>To</span>
+              <input type="date" value={journal.to} onChange={(event) => journal.onTo(event.target.value)} />
+            </label>
+          </div>
+          <div className="sync-actions">
+            <button type="button" className="secondary-action" onClick={journal.onPreview}>Preview</button>
+            <button type="button" className="secondary-action" onClick={journal.onImport}>Import</button>
+          </div>
+          <p className="sync-hint journal-preview" aria-live="polite">
+            {journal.preview
+              ? `${journal.preview.days} day(s) · ${journal.preview.records.length} session(s) available`
+              : 'Default range: recent 3 months'}
+          </p>
         </section>
 
         <section className="settings-group data-group">

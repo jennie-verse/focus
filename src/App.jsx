@@ -16,6 +16,7 @@ import {
   saveSettings,
 } from './storage.js'
 import * as SyncApi from './sync.js'
+import * as JournalApi from './journal.js'
 import { formatTimer, getRecentDays, getStreak, getTodayStats } from './stats.js'
 
 // 화면에 보여 주는 빌드 이름입니다. public/sw.js 의 VERSION 과 반드시 같아야 합니다
@@ -24,7 +25,7 @@ import { formatTimer, getRecentDays, getStreak, getTodayStats } from './stats.js
 // 왜 화면에 띄우는가: Service Worker 가 캐시를 먼저 돌려주기 때문에, 새 버전을 배포해도
 // 앱을 처음 열 때는 **옛 코드가 그대로 돕니다.** 2026-08-09 에 이미 고친 버그가 이 때문에
 // 한 번 더 데이터를 지웠습니다. 지금 무엇이 돌고 있는지 눈으로 확인할 수 있어야 합니다.
-const APP_BUILD = '2026.08.09-sync6'
+const APP_BUILD = '2026.08.17-journal1'
 
 const MODE_SETTING = {
   focus: 'focusMinutes',
@@ -68,6 +69,18 @@ function makeId() {
 function formatMoment(timestamp) {
   if (!timestamp) return 'Never'
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(timestamp)
+}
+
+function dateInputValue(timestamp = Date.now()) {
+  const date = new Date(timestamp)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function daysInRange(from, to) {
+  const start = new Date(`${from}T12:00:00`)
+  const end = new Date(`${to}T12:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return 0
+  return Math.floor((end - start) / 86400000) + 1
 }
 
 function primeAudio() {
@@ -166,6 +179,7 @@ export default function App() {
   const [screen, setScreen] = useState('timer')
   const [toast, setToast] = useState('')
   const [confirmClear, setConfirmClear] = useState(false)
+  const [confirmJournalImport, setConfirmJournalImport] = useState(false)
   const [pendingImportSettings, setPendingImportSettings] = useState(null)
   const [lastBackupAt, setLastBackupAt] = useState(() => Number(localStorage.getItem('focus-last-backup')) || 0)
   const [storagePersisted, setStoragePersisted] = useState(null)
@@ -182,6 +196,14 @@ export default function App() {
   }))
   const [tokenDraft, setTokenDraft] = useState('')
   const [labelDraft, setLabelDraft] = useState(() => SyncApi.getContextLabel())
+  const [journalState, setJournalState] = useState(() => JournalApi.getJournalState())
+  const [journalFrom, setJournalFrom] = useState(() => {
+    const start = new Date()
+    start.setMonth(start.getMonth() - 3)
+    return dateInputValue(start)
+  })
+  const [journalTo, setJournalTo] = useState(() => dateInputValue())
+  const [journalPreview, setJournalPreview] = useState(null)
   const importRef = useRef(null)
   const completionRef = useRef(false)
   const toastTimerRef = useRef(null)
@@ -221,6 +243,13 @@ export default function App() {
       cancelled = true
       window.clearTimeout(toastTimerRef.current)
     }
+  }, [])
+
+  useEffect(() => {
+    const update = (event) => setJournalState({ ...JournalApi.getJournalState(), ...(event.detail || {}) })
+    window.addEventListener('focus-journal-state', update)
+    JournalApi.refreshJournalState().then(setJournalState)
+    return () => window.removeEventListener('focus-journal-state', update)
   }, [])
 
   useEffect(() => {
@@ -283,6 +312,7 @@ export default function App() {
       completed,
     }
     await addSession(session)
+    JournalApi.queueSession(session)
     const records = await getSessions()
     setSessions(records)
     clearActiveTimer()
@@ -529,6 +559,7 @@ export default function App() {
       const merged = new Map(sessions.map((session) => [session.id, session]))
       backup.sessions.forEach((session) => session?.id && merged.set(session.id, session))
       await replaceSessions([...merged.values()])
+      JournalApi.queueSessions(backup.sessions)
       await refreshSessions()
       if (backup.settings && typeof backup.settings === 'object') {
         setPendingImportSettings(backup.settings)
@@ -548,16 +579,81 @@ export default function App() {
   }
 
   const removeSession = async (id) => {
+    const removed = sessions.find((session) => session.id === id)
     await deleteSession(id)
+    if (removed) JournalApi.queueSession(removed, { deleted: true, updatedAt: Date.now() })
     await refreshSessions()
     showToast('Record deleted.')
   }
 
   const removeAll = async () => {
+    const removed = sessions.slice()
     await clearSessions()
+    removed.forEach((session) => JournalApi.queueSession(session, { deleted: true, updatedAt: Date.now() }))
     setSessions([])
     setConfirmClear(false)
     showToast('All records deleted.')
+  }
+
+  const toggleJournal = async (enabled) => {
+    const result = await JournalApi.toggleJournal(enabled, labelDraft)
+    if (!result.ok) {
+      showToast(result.reason === 'token' ? 'Save a GitHub token first.' : 'Set a device name first.')
+      setJournalState(JournalApi.getJournalState())
+      return
+    }
+    setLabelDraft(SyncApi.getContextLabel() || labelDraft)
+    setJournalState(await JournalApi.refreshJournalState())
+    showToast(enabled ? 'New Focus and break sessions will be included in Daybook.' : 'Journal inclusion is off.')
+  }
+
+  const journalRecordsInRange = useCallback(() => sessions.filter((session) => {
+    try {
+      const day = JournalApi.localDay(session.endedAt)
+      return day >= journalFrom && day <= journalTo
+    } catch {
+      return false
+    }
+  }), [journalFrom, journalTo, sessions])
+
+  const previewJournalHistory = () => {
+    const days = daysInRange(journalFrom, journalTo)
+    if (!days) {
+      showToast('Choose a valid history range.')
+      return null
+    }
+    const records = journalRecordsInRange()
+    const preview = { from: journalFrom, to: journalTo, days, records }
+    setJournalPreview(preview)
+    return preview
+  }
+
+  const prepareJournalImport = () => {
+    if (!journalState.enabled) {
+      showToast('Turn on Include in journal first.')
+      return
+    }
+    const preview = previewJournalHistory()
+    if (preview) setConfirmJournalImport(true)
+  }
+
+  const importJournalHistory = async () => {
+    const preview = journalPreview
+    setConfirmJournalImport(false)
+    if (!preview) return
+    await JournalApi.reportJournalStatus({ backfill: {
+      status: 'running', from: preview.from, to: preview.to,
+      processedDates: 0, totalDates: preview.days, updatedAt: JournalApi.localIso(),
+    } })
+    await JournalApi.queueSessions(preview.records)
+    const result = await JournalApi.flushJournal()
+    await JournalApi.reportJournalStatus({ backfill: {
+      status: result.error ? 'partial' : 'complete', from: preview.from, to: preview.to,
+      processedDates: result.error ? 0 : preview.days, totalDates: preview.days,
+      updatedAt: JournalApi.localIso(),
+    } })
+    setJournalState(await JournalApi.refreshJournalState())
+    showToast(result.error ? 'History queued. It will retry when online.' : 'Existing Focus history added.')
   }
 
   return (
@@ -612,11 +708,23 @@ export default function App() {
             onSyncNow: () => runSync({ manual: true }),
             onBackupToGitHub: backupToGitHub,
           }}
+          journal={{
+            ...journalState,
+            from: journalFrom,
+            to: journalTo,
+            preview: journalPreview,
+            onFrom: (value) => { setJournalFrom(value); setJournalPreview(null) },
+            onTo: (value) => { setJournalTo(value); setJournalPreview(null) },
+            onToggle: toggleJournal,
+            onPreview: previewJournalHistory,
+            onImport: prepareJournalImport,
+          }}
         />
       )}
       <input ref={importRef} className="hidden-file" type="file" accept=".json,application/json" onChange={importBackup} />
       <div className={`toast ${toast ? 'show' : ''}`} role="status" aria-live="polite">{toast}</div>
       {confirmClear ? <ConfirmModal title="Delete all records?" message="Focus records cannot be recovered. Save a backup first if you might need them." confirmLabel="Delete all" danger onCancel={() => setConfirmClear(false)} onConfirm={removeAll} /> : null}
+      {confirmJournalImport ? <ConfirmModal title="Add existing history?" message={`${journalPreview?.records.length || 0} session(s) from ${journalPreview?.from} through ${journalPreview?.to} will be added to Daybook.`} confirmLabel="Import" onCancel={() => setConfirmJournalImport(false)} onConfirm={importJournalHistory} /> : null}
       {pendingImportSettings ? <ConfirmModal title="Overwrite settings too?" message="This backup file also contains settings. Replacing your current settings cannot be undone." confirmLabel="Overwrite settings" onCancel={() => setPendingImportSettings(null)} onConfirm={applyImportedSettings} /> : null}
     </>
   )

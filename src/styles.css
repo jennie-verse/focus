@@ -272,6 +272,9 @@ button:disabled { cursor: default; opacity: 0.55; }
 .sync-status dd.has-error { color: var(--danger); }
 .sync-group .secondary-action { width: 100%; min-height: 46px; }
 .sync-group .secondary-action:disabled, .data-button:disabled { opacity: 0.5; }
+.journal-group h3 { margin: 18px 0 8px; font-size: calc(14px * var(--scale)); }
+.journal-range { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 9px; }
+.journal-preview { min-height: 16px; margin: 4px 0 0; }
 
 .data-group { padding: 16px; }
 .data-group h2 { margin: 0 0 8px; font-size: calc(18px * var(--scale)); }

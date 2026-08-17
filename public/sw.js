@@ -1,4 +1,4 @@
-const VERSION = '2026.08.09-sync6'
+const VERSION = '2026.08.17-journal1'
 const CACHE = `focus-${VERSION}`
 
 const CORE_ASSETS = [
@@ -17,6 +17,7 @@ const CORE_ASSETS = [
 // 실패하는데, 이 파일이 잠깐 안 열린다고 앱이 설치되지 못하면 안 됩니다.
 const OPTIONAL_ASSETS = [
   '../shared/v1/sync.js',
+  '../shared/v2/journal.js',
 ]
 
 self.addEventListener('install', (event) => {
