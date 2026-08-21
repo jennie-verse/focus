@@ -25,7 +25,7 @@ import { formatTimer, getRecentDays, getStreak, getTodayStats } from './stats.js
 // 왜 화면에 띄우는가: Service Worker 가 캐시를 먼저 돌려주기 때문에, 새 버전을 배포해도
 // 앱을 처음 열 때는 **옛 코드가 그대로 돕니다.** 2026-08-09 에 이미 고친 버그가 이 때문에
 // 한 번 더 데이터를 지웠습니다. 지금 무엇이 돌고 있는지 눈으로 확인할 수 있어야 합니다.
-const APP_BUILD = '2026.08.17-journal1'
+const APP_BUILD = '2026.08.21-resilient-sync'
 
 const MODE_SETTING = {
   focus: 'focusMinutes',

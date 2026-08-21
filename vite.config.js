@@ -6,8 +6,8 @@ export default defineConfig({
   base: './',
   build: {
     rollupOptions: {
-      // 공용 모듈 shared/v1/sync.js 는 다른 저장소에 있어 번들에 넣지 않습니다.
-      // 같은 오리진(jennie-verse.github.io)의 ES module 로 브라우저가 직접 불러옵니다.
+      // 공용 모듈은 동기화를 사용할 때만 공개 URL에서 동적 로드합니다.
+      // 해당 URL은 번들에 포함하지 않습니다.
       external: [/^https:\/\/jennie-verse\.github\.io\//],
     },
   },

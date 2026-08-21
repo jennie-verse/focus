@@ -64,3 +64,11 @@ test('journal opt-in uses a separate default-off key and a dynamic shared/v2 imp
   assert.match(source, /import\(\/\* @vite-ignore \*\/ MODULE_URL\)/)
   assert.doesNotMatch(source, /SyncApi\.isEnabled\(\).*setJournalEnabled/s)
 })
+
+test('shared sync v1 is loaded only when sync work is requested', async () => {
+  const source = await readFile(new URL('../src/sync.js', import.meta.url), 'utf8')
+  assert.match(source, /import\(\/\* @vite-ignore \*\/ SHARED_URL\)/)
+  assert.doesNotMatch(source, /^import\s+.*shared\/v1\/sync\.js/m)
+  assert.match(source, /const CONTEXT_KEY = `\$\{NAMESPACE\}\.syncContextId`/)
+  assert.match(source, /export function getContextId\(\) \{\s+return readItem\(CONTEXT_KEY, ''\)/)
+})

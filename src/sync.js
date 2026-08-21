@@ -13,9 +13,23 @@
    동기화는 기본으로 꺼져 있습니다. 꺼진 상태에서도 앱은 완전히 동작해야 하고,
    로컬 저장이 언제나 먼저입니다. */
 
-import * as Shared from 'https://jennie-verse.github.io/shared/v1/sync.js'
-
 const NAMESPACE = 'focus'
+const SHARED_URL = 'https://jennie-verse.github.io/shared/v1/sync.js'
+
+let sharedPromise = null
+
+async function api() {
+  if (!sharedPromise) {
+    sharedPromise = import(/* @vite-ignore */ SHARED_URL).catch((cause) => {
+      sharedPromise = null
+      const error = new Error('The shared sync module could not be loaded.')
+      error.type = 'network'
+      error.cause = cause
+      throw error
+    })
+  }
+  return sharedPromise
+}
 
 const REPO = Object.freeze({
   owner: 'jennie-verse',
@@ -98,12 +112,17 @@ export function setEnabled(enabled) {
   writeItem(KEYS.enabled, enabled ? '1' : '0')
 }
 
+// Initial rendering only needs local values. Keep it independent from the
+// optional shared module so the timer still opens when that asset is offline.
+const CONTEXT_KEY = `${NAMESPACE}.syncContextId`
+const CONTEXT_LABEL_KEY = `${NAMESPACE}.syncContextLabel`
+
 export function getContextId() {
-  return Shared.getContextId(NAMESPACE) || ''
+  return readItem(CONTEXT_KEY, '')
 }
 
 export function getContextLabel() {
-  return Shared.getContextLabel(NAMESPACE) || ''
+  return readItem(CONTEXT_LABEL_KEY, '')
 }
 
 /** 컨텍스트 ID 를 만듭니다.
@@ -116,12 +135,13 @@ export function getContextLabel() {
     한글만 적으면 전부 걸러져 `context-…` 가 되므로, 화면에서 영문 입력을 안내합니다.
     사용자에게 보이는 이름(label)에는 한글이 그대로 남습니다. */
 export async function ensureContext(preferredName) {
+  const Shared = await api()
   return Shared.ensureContextId(NAMESPACE, () => String(preferredName || '').trim())
 }
 
 /** 사용자가 붙이는 이름입니다. 한글도 그대로 저장됩니다. 파일 이름과는 무관합니다. */
 export function setContextLabel(label) {
-  Shared.setContextLabel(NAMESPACE, String(label || '').trim())
+  writeItem(CONTEXT_LABEL_KEY, String(label || '').trim())
 }
 
 export function getLastSyncAt() {
@@ -237,6 +257,7 @@ function mergeEventsById(current, incoming) {
 }
 
 async function writeEventMonth(cfg, path, incoming) {
+  const Shared = await api()
   for (let attempt = 0; attempt < CONFLICT_RETRY; attempt += 1) {
     const existing = await Shared.readFile(cfg, path)
     const current = existing.exists ? parseJson(existing.content, []) : []
@@ -303,7 +324,7 @@ export async function flushEvents() {
 /* ── A. 기기 간 동기화 ─────────────────────────────────────────────────── */
 
 function dataPath(contextId) {
-  return Shared.contextFilePath(`${NAMESPACE}/data.json`, contextId)
+  return `${NAMESPACE}/data.${contextId}.json`
 }
 
 /** 이 기기의 설정·세션 전체를 한 파일로 올립니다. 기기마다 파일이 분리됩니다.
@@ -317,6 +338,7 @@ function dataPath(contextId) {
     지우기를 기기 간에 맞추려면 tide 처럼 tombstone 을 따로 둬야 합니다. */
 export async function pushData({ settings, sessions }) {
   if (!isReady()) return false
+  const Shared = await api()
   const cfg = config()
   const contextId = getContextId()
   const path = dataPath(contextId)
@@ -361,6 +383,7 @@ export async function pushData({ settings, sessions }) {
 /** 모든 기기의 파일을 읽어 세션을 합칩니다. 같은 id 는 endedAt 이 최신인 쪽이 이깁니다. */
 export async function pullSessions() {
   if (!isReady()) return null
+  const Shared = await api()
   const cfg = config()
   const entries = await Shared.listDir(cfg, NAMESPACE)
   const files = entries.filter((entry) => (
@@ -398,6 +421,7 @@ function backupDayKey(timestamp) {
 /** 백업 본문은 기기 파일 내보내기와 같은 모양입니다. 기존 가져오기가 그대로 읽습니다. */
 export async function backupNow(backupPayload) {
   if (!isReady()) return false
+  const Shared = await api()
   const cfg = config()
   const path = `backups/${NAMESPACE}/${backupDayKey(Date.now())}.json`
   const body = `${JSON.stringify(backupPayload, null, 2)}\n`
@@ -412,12 +436,12 @@ export async function backupNow(backupPayload) {
     message: `focus: back up ${path}`,
   })
   writeItem(KEYS.lastRemoteBackupAt, String(Date.now()))
-  await pruneBackups(cfg)
+  await pruneBackups(cfg, Shared)
   return true
 }
 
 /** 최근 12개만 남기고 오래된 것부터 지웁니다. 실패해도 백업 자체는 성공으로 둡니다. */
-async function pruneBackups(cfg) {
+async function pruneBackups(cfg, Shared) {
   try {
     const entries = await Shared.listDir(cfg, `backups/${NAMESPACE}`)
     const files = entries
