@@ -14,7 +14,9 @@
    로컬 저장이 언제나 먼저입니다. */
 
 const NAMESPACE = 'focus'
-const SHARED_URL = 'https://jennie-verse.github.io/shared/v1/sync.js'
+const HOSTNAME = globalThis.location?.hostname || ''
+const APP_URL = globalThis.location?.href || import.meta.url
+const SHARED_URL = new URL('../shared/v1/sync.js', APP_URL).href
 
 let sharedPromise = null
 
@@ -32,7 +34,9 @@ async function api() {
 }
 
 const REPO = Object.freeze({
-  owner: 'jennie-verse',
+  owner: HOSTNAME.endsWith('.github.io')
+    ? HOSTNAME.slice(0, -'.github.io'.length)
+    : '',
   repo: 'webapp-data',
   branch: 'main',
 })

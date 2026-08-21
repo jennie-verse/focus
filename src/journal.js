@@ -2,8 +2,16 @@ import * as SyncApi from './sync.js'
 import { localDay, localIso, sessionToJournalRecord } from './journal-record.js'
 
 const ENABLED_KEY = 'focus.journalEnabled.v1'
-const MODULE_URL = new URL('../shared/v2/journal.js', window.location.href).href
-const REPO = Object.freeze({ owner: 'jennie-verse', repo: 'webapp-data', branch: 'main' })
+const HOSTNAME = globalThis.location?.hostname || ''
+const APP_URL = globalThis.location?.href || import.meta.url
+const MODULE_URL = new URL('../shared/v2/journal.js', APP_URL).href
+const REPO = Object.freeze({
+  owner: HOSTNAME.endsWith('.github.io')
+    ? HOSTNAME.slice(0, -'.github.io'.length)
+    : '',
+  repo: 'webapp-data',
+  branch: 'main',
+})
 
 let clientPromise = null
 let lastState = { status: 'not reported', pendingCount: 0, errorCode: '' }

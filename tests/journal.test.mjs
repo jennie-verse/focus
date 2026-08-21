@@ -68,7 +68,18 @@ test('journal opt-in uses a separate default-off key and a dynamic shared/v2 imp
 test('shared sync v1 is loaded only when sync work is requested', async () => {
   const source = await readFile(new URL('../src/sync.js', import.meta.url), 'utf8')
   assert.match(source, /import\(\/\* @vite-ignore \*\/ SHARED_URL\)/)
+  assert.match(source, /const APP_URL = globalThis\.location\?\.href \|\| import\.meta\.url/)
+  assert.match(source, /new URL\('\.\.\/shared\/v1\/sync\.js', APP_URL\)\.href/)
   assert.doesNotMatch(source, /^import\s+.*shared\/v1\/sync\.js/m)
   assert.match(source, /const CONTEXT_KEY = `\$\{NAMESPACE\}\.syncContextId`/)
   assert.match(source, /export function getContextId\(\) \{\s+return readItem\(CONTEXT_KEY, ''\)/)
+})
+
+test('sync and journal derive the repository owner from the Pages hostname', async () => {
+  for (const path of ['../src/sync.js', '../src/journal.js']) {
+    const source = await readFile(new URL(path, import.meta.url), 'utf8')
+    assert.match(source, /globalThis\.location\?\.hostname/)
+    assert.match(source, /HOSTNAME\.endsWith\('\.github\.io'\)/)
+    assert.doesNotMatch(source, /owner:\s*['"]jennie-verse['"]/)
+  }
 })
