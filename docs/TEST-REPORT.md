@@ -48,3 +48,11 @@
 - Chromium 1280×900 / 390×844: 주요 조작, 재시작 후 기존 데이터 보존, 화면·페이지 오류 검사 통과.
 - Service Worker를 통한 오프라인 앱 재실행: 통과.
 - 실제 iPhone/iPad Safari, iCloud 공유, 실제 비공개 GitHub 데이터 동기화: 실기기 확인 필요.
+
+
+## 2026-09-08 추가 안정성 검토 (review2)
+
+- 변경: IndexedDB 쓰기 실패 시 대체 저장한 세션을 기존 기록과 함께 표시. 삭제/교체/전체 삭제도 복구 후 유지. 기존 배열형 대체 기록 호환. 트랜잭션 abort 처리와 복원 clear 롤백, 저장 작업 직렬화.
+- 검증: 전체 기존 테스트 및 추가 회귀 테스트, JavaScript 구문 검사. 격리된 Chromium에서 데스크톱 1280×900/모바일 390×844 저장·새로고침·실패 복구 검증. Browser plugin not available; bundled Playwright 사용.
+- 주입 검증: 실제 IndexedDB 쓰기 실패 시 fallback CRUD/복구 및 이중 저장 실패 후 Retry save.
+- 한계: 실제 iPhone Safari/Home Screen 및 개인 계정의 실서버 동기화는 직접 시험하지 않음.

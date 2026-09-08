@@ -53,34 +53,78 @@ function openDatabase() {
 async function runStore(mode, operation) {
   const db = await openDatabase()
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(SESSION_STORE, mode)
-    const store = transaction.objectStore(SESSION_STORE)
+    let transaction
     let value
+    const fail = error => { db.close(); reject(error || new Error('Database transaction failed')) }
     try {
-      value = operation(store)
+      transaction = db.transaction(SESSION_STORE, mode)
+      transaction.oncomplete = () => { db.close(); resolve(value) }
+      transaction.onerror = () => fail(transaction.error)
+      transaction.onabort = () => fail(transaction.error || new Error('Database transaction aborted'))
+      value = operation(transaction.objectStore(SESSION_STORE))
     } catch (error) {
-      db.close()
-      reject(error)
-      return
-    }
-    transaction.oncomplete = () => {
-      db.close()
-      resolve(value)
-    }
-    transaction.onerror = () => {
-      db.close()
-      reject(transaction.error || new Error('Database transaction failed'))
+      // In particular, a failed put after clear must never commit the clear.
+      try { transaction?.abort() } catch {}
+      fail(error)
     }
   })
 }
 
-function getFallbackSessions() {
-  const value = safeParse(localStorage.getItem(FALLBACK_SESSIONS_KEY), [])
-  return Array.isArray(value) ? value : []
+// Pending fallback operations overlay IndexedDB, including deletions and full
+// replacements. Old array backups remain readable as additional sessions.
+function readFallback() {
+  let raw = null
+  try { raw = localStorage.getItem(FALLBACK_SESSIONS_KEY) } catch {}
+  const value = safeParse(raw, null)
+  const pending = Array.isArray(value)
+    ? { sessions: value, deleted: [], replace: false }
+    : value && Array.isArray(value.sessions) && Array.isArray(value.deleted)
+      ? value : { sessions: [], deleted: [], replace: false }
+  return { raw, pending }
 }
 
-function setFallbackSessions(sessions) {
-  localStorage.setItem(FALLBACK_SESSIONS_KEY, JSON.stringify(sessions))
+function overlay(records, pending) {
+  const sessions = new Map((pending.replace ? [] : records).map(item => [item.id, item]))
+  pending.deleted.forEach(id => sessions.delete(id))
+  pending.sessions.forEach(item => sessions.set(item.id, item))
+  return [...sessions.values()]
+}
+
+function applyPending(store, pending) {
+  if (pending.replace) store.clear()
+  pending.deleted.forEach(id => store.delete(id))
+  pending.sessions.forEach(item => store.put(item))
+}
+
+// Serialize this page's reads and writes so recovery cannot erase a newer save.
+let sessionQueue = Promise.resolve()
+function serial(operation) {
+  const result = sessionQueue.then(operation)
+  sessionQueue = result.catch(() => {})
+  return result
+}
+
+async function recoverFallback(raw, pending) {
+  await runStore('readwrite', store => applyPending(store, pending))
+  // Keep the overlay if another page changed it while the transaction ran.
+  try {
+    if (localStorage.getItem(FALLBACK_SESSIONS_KEY) === raw) localStorage.removeItem(FALLBACK_SESSIONS_KEY)
+  } catch { /* The committed overlay is safe to replay. */ }
+}
+
+function mutateSessions(change) {
+  return serial(async () => {
+    const { raw, pending } = readFallback()
+    const next = change(pending)
+    if (!raw) {
+      try { await runStore('readwrite', store => applyPending(store, next)); return } catch {}
+    }
+    // Persist new intent before attempting recovery, so even a failed cleanup
+    // cannot bring a deleted session back or replace a newly saved record.
+    const saved = JSON.stringify({ version: 2, ...next })
+    localStorage.setItem(FALLBACK_SESSIONS_KEY, saved)
+    try { await recoverFallback(saved, next) } catch { /* Safely queued locally. */ }
+  })
 }
 
 export function loadSettings() {
@@ -109,53 +153,46 @@ export function clearActiveTimer() {
   localStorage.removeItem(ACTIVE_KEY)
 }
 
-export async function getSessions() {
-  try {
-    const sessions = await runStore('readonly', (store) => {
-      const request = store.getAll()
-      request.onsuccess = () => {}
-      return request
-    })
-    const records = sessions?.result || []
-    return [...records].sort((a, b) => b.endedAt - a.endedAt)
-  } catch {
-    return [...getFallbackSessions()].sort((a, b) => b.endedAt - a.endedAt)
+export function getSessions() {
+  return serial(async () => {
+    let { raw, pending } = readFallback()
+    if (raw) {
+      try { await recoverFallback(raw, pending) } catch {}
+      ;({ pending } = readFallback())
+    }
+    let records = []
+    try { records = (await runStore('readonly', store => store.getAll()))?.result || [] } catch {}
+    return overlay(records, pending).sort((a, b) => b.endedAt - a.endedAt)
+  })
+}
+
+function validateSession(session) {
+  if (!session || typeof session.id !== 'string' || !session.id || !Number.isFinite(session.endedAt)) {
+    throw new Error('Invalid session record')
   }
 }
 
-export async function addSession(session) {
-  try {
-    await runStore('readwrite', (store) => store.put(session))
-  } catch {
-    const sessions = getFallbackSessions().filter((item) => item.id !== session.id)
-    sessions.push(session)
-    setFallbackSessions(sessions)
-  }
+export function addSession(session) {
+  validateSession(session)
+  return mutateSessions(pending => ({ ...pending,
+    sessions: [...pending.sessions.filter(item => item.id !== session.id), session],
+    deleted: pending.deleted.filter(id => id !== session.id),
+  }))
 }
 
-export async function replaceSessions(sessions) {
-  try {
-    await runStore('readwrite', (store) => {
-      store.clear()
-      sessions.forEach((session) => store.put(session))
-    })
-  } catch {
-    setFallbackSessions(sessions)
-  }
+export function replaceSessions(sessions) {
+  if (!Array.isArray(sessions)) throw new Error('Invalid session backup')
+  sessions.forEach(validateSession)
+  return mutateSessions(() => ({ sessions, deleted: [], replace: true }))
 }
 
-export async function deleteSession(id) {
-  try {
-    await runStore('readwrite', (store) => store.delete(id))
-  } catch {
-    setFallbackSessions(getFallbackSessions().filter((session) => session.id !== id))
-  }
+export function deleteSession(id) {
+  return mutateSessions(pending => ({ ...pending,
+    sessions: pending.sessions.filter(item => item.id !== id),
+    deleted: [...new Set([...pending.deleted, id])],
+  }))
 }
 
-export async function clearSessions() {
-  try {
-    await runStore('readwrite', (store) => store.clear())
-  } catch {
-    setFallbackSessions([])
-  }
+export function clearSessions() {
+  return mutateSessions(() => ({ sessions: [], deleted: [], replace: true }))
 }
