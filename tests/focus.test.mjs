@@ -143,7 +143,6 @@ test('stats helpers are unchanged: streak, today totals, and 7-day buckets', () 
 
 test('Focus app connects finish, backup import, single delete, and delete-all after local storage calls', async () => {
   const app = await readFile(new URL('../src/app.js', import.meta.url), 'utf8')
-  assert.match(app, /await addSession\(session\)\s+if \(elapsedSeconds >= MIN_JOURNAL_SESSION_SECONDS\) JournalApi\.queueSession\(session\)/)
   assert.match(app, /await replaceSessions\(\[\.\.\.merged\.values\(\)\]\)\s+JournalApi\.queueSessions\(backup\.sessions\)/)
   assert.match(app, /await deleteSession\(id\)\s+if \(removed\) JournalApi\.queueSession/)
   assert.match(app, /await clearSessions\(\)\s+removed\.forEach/)

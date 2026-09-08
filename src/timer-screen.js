@@ -43,7 +43,7 @@ function buildRing(timer) {
   svg.append(track, ring)
   const copy = el('div', { class: 'timer-copy' }, [
     el('strong', { text: formatTimer(timer.remainingSeconds) }),
-    el('span', { text: timer.status === 'running' ? 'Focusing' : timer.status === 'paused' ? 'Paused' : 'Ready' }),
+    el('span', { text: timer.status === 'running' ? (timer.mode === 'focus' ? 'Focusing' : 'Resting') : timer.status === 'paused' ? (timer.pendingSession ? 'Not saved' : 'Paused') : 'Ready' }),
   ])
   wrap.append(svg, copy)
   return wrap
@@ -60,7 +60,7 @@ export function updateRing(container, timer) {
   const copy = ring.querySelector('.timer-copy')
   if (copy) {
     copy.querySelector('strong').textContent = formatTimer(timer.remainingSeconds)
-    copy.querySelector('span').textContent = timer.status === 'running' ? 'Focusing' : timer.status === 'paused' ? 'Paused' : 'Ready'
+    copy.querySelector('span').textContent = timer.status === 'running' ? (timer.mode === 'focus' ? 'Focusing' : 'Resting') : timer.status === 'paused' ? (timer.pendingSession ? 'Not saved' : 'Paused') : 'Ready'
   }
 }
 
@@ -162,7 +162,7 @@ export function renderTimerScreen(container, state, handlers) {
       // (settings-screen.js MODE_ROWS), so the tab you're on and its minutes
       // stepper read as the same category at a glance.
       const cls = ['mode-' + mode.id, timer.mode === mode.id ? 'active' : ''].filter(Boolean).join(' ')
-      const btn = el('button', { type: 'button', class: cls, disabled: locked, text: mode.label })
+      const btn = el('button', { type: 'button', class: cls, disabled: locked, 'aria-pressed': String(timer.mode === mode.id), text: mode.label })
       btn.addEventListener('click', () => handlers.onMode(mode.id))
       modeControl.appendChild(btn)
     })
@@ -204,11 +204,14 @@ export function renderTimerScreen(container, state, handlers) {
     endBtn.addEventListener('click', handlers.onEnd)
     actions.append(pauseBtn, endBtn)
   } else if (timer.status === 'paused') {
-    const resumeBtn = el('button', { class: 'primary-action', type: 'button', text: 'Resume' })
-    resumeBtn.addEventListener('click', handlers.onResume)
-    const endBtn = el('button', { class: 'secondary-action', type: 'button', text: 'End and log' })
+    if (!timer.pendingSession) {
+      const resumeBtn = el('button', { class: 'primary-action', type: 'button', text: 'Resume' })
+      resumeBtn.addEventListener('click', handlers.onResume)
+      actions.appendChild(resumeBtn)
+    }
+    const endBtn = el('button', { class: timer.pendingSession ? 'primary-action' : 'secondary-action', type: 'button', text: timer.pendingSession ? 'Retry save' : 'End and log' })
     endBtn.addEventListener('click', handlers.onEnd)
-    actions.append(resumeBtn, endBtn)
+    actions.appendChild(endBtn)
   }
   main.appendChild(actions)
 

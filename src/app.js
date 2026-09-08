@@ -22,62 +22,9 @@ let tickInterval = null
 let wakeLock = null
 let wakeLockVisibilityHandler = null
 let startupSyncDone = false
+let timerStorageWarning = false
 
-// ---------- one-time fresh start (2026-09-05 initial release reset) ----------
-//
-// This app's data is being treated as a brand-new install as of APP_BUILD
-// '2026.09.05-freshstart1'. On the first load after this update, wipe focus's
-// own localStorage/IndexedDB so it behaves like a first-time install.
-//
-// Only focus's own namespaced keys are touched. `sync.token.v1` is a GitHub
-// token shared across multiple apps (see src/sync.js KEYS.token) and is never
-// cleared here. `shared/v1` (the sync module itself) is not app data and is
-// left alone.
-const FRESH_START_MARKER = 'focus.freshStartAppliedFor'
-const FRESH_START_VERSION = '2026.09.05-freshstart1'
-const FRESH_START_LOCAL_KEYS = [
-  'focus-sessions-v1', 'focus-settings-v1', 'focus-active-v1',
-  'focus-last-subject', 'focus-last-backup',
-  'focus.syncEnabled', 'focus.lastSyncAt', 'focus.lastRemoteBackupAt', 'focus.pendingEvents',
-  'focus.syncContextId', 'focus.syncContextLabel', 'focus.journalEnabled.v1',
-]
-const FRESH_START_DB_NAME = 'focus-timer-v1'
-
-function runFreshStartResetOnce() {
-  try {
-    if (localStorage.getItem(FRESH_START_MARKER) === FRESH_START_VERSION) return
-    FRESH_START_LOCAL_KEYS.forEach((key) => { try { localStorage.removeItem(key) } catch { /* ignore */ } })
-    localStorage.setItem(FRESH_START_MARKER, FRESH_START_VERSION)
-  } catch {
-    // If localStorage is unavailable there is nothing to reset anyway.
-  }
-}
-
-function deleteFreshStartDatabase() {
-  return new Promise((resolve) => {
-    try {
-      if (!('indexedDB' in window)) { resolve(); return }
-      const request = indexedDB.deleteDatabase(FRESH_START_DB_NAME)
-      request.onsuccess = () => resolve()
-      request.onerror = () => resolve()
-      request.onblocked = () => resolve()
-    } catch {
-      resolve()
-    }
-  })
-}
-
-const freshStartAlreadyApplied = (() => {
-  try {
-    return localStorage.getItem(FRESH_START_MARKER) === FRESH_START_VERSION
-  } catch {
-    return true
-  }
-})()
-runFreshStartResetOnce()
-// Only touch IndexedDB when the reset is actually running for the first time,
-// so we never delete real session data on every later boot.
-const freshStartDbCleared = freshStartAlreadyApplied ? Promise.resolve() : deleteFreshStartDatabase()
+// Existing sessions, settings and active timers survive every app update.
 
 function primeAudio() {
   try {
@@ -162,8 +109,8 @@ const state = {
   settings: initialSettings,
   timer: restoreTimer(initialSettings, loadActiveTimer()),
   sessions: [],
-  subject: localStorage.getItem('focus-last-subject') || '',
-  task: '',
+  subject: loadActiveTimer()?.subject ?? localStorage.getItem('focus-last-subject') ?? '',
+  task: loadActiveTimer()?.task || '',
   screen: 'timer',
   confirmClearBusy: false,
   lastBackupAt: Number(localStorage.getItem('focus-last-backup')) || 0,
@@ -285,7 +232,13 @@ function applyFontScale() {
 }
 
 function persistTimer() {
-  saveActiveTimer(state.timer)
+  try {
+    saveActiveTimer({ ...state.timer, subject: state.subject, task: state.task })
+    timerStorageWarning = false
+  } catch {
+    if (!timerStorageWarning) toast('The timer could not be saved on this device. Keep Focus open until you can save your session.')
+    timerStorageWarning = true
+  }
   document.title = state.timer.status === 'idle' ? 'Focus' : `${formatTimer(state.timer.remainingSeconds)} · Focus`
 }
 
@@ -296,16 +249,19 @@ function stopTicking() {
 function startTicking() {
   stopTicking()
   const tick = () => {
+    if (state.timer.status !== 'running' || completing) return
     const remaining = Math.max(0, (state.timer.targetEnd - Date.now()) / 1000)
     if (Math.ceil(state.timer.remainingSeconds) !== Math.ceil(remaining)) {
       state.timer = { ...state.timer, remainingSeconds: remaining }
       persistTimer()
       updateRing(document.getElementById('root'), state.timer)
-      if (state.timer.remainingSeconds <= 0) finishSession(true)
     }
+    // A timer restored after its deadline already has zero remaining seconds.
+    // Completion must not depend on the displayed second changing.
+    if (remaining <= 0) finishSession(true)
   }
-  tick()
   tickInterval = window.setInterval(tick, 250)
+  tick()
 }
 
 async function releaseWakeLock() {
@@ -353,18 +309,27 @@ async function finishSession(completed) {
     ? Math.max(0, (timer.targetEnd - Date.now()) / 1000)
     : timer.remainingSeconds
   const elapsedSeconds = Math.max(1, Math.round(timer.totalSeconds - liveRemaining))
-  const session = {
+  const session = timer.pendingSession || {
     id: makeId(),
     mode: timer.mode,
     startedAt: timer.startedAt || Date.now() - elapsedSeconds * 1000,
-    endedAt: Date.now(),
+    endedAt: completed && timer.targetEnd ? Math.min(Date.now(), timer.targetEnd) : Date.now(),
     plannedSeconds: timer.totalSeconds,
     elapsedSeconds,
     subject: state.subject.trim(),
     task: state.task.trim(),
     completed,
   }
-  await addSession(session)
+  completed = session.completed
+  try {
+    await addSession(session)
+  } catch {
+    completing = false
+    setTimer({ ...timer, status: 'paused', remainingSeconds: liveRemaining, targetEnd: null, pendingSession: session })
+    render()
+    toast('Could not save this session. Free some storage, then use Retry save.')
+    return
+  }
   if (elapsedSeconds >= MIN_JOURNAL_SESSION_SECONDS) JournalApi.queueSession(session)
   const records = await getSessions()
   state.sessions = records
@@ -382,9 +347,9 @@ async function finishSession(completed) {
     nextMode = nextModeAfter('focus', completedFocusCount, state.settings.longEvery)
   }
   const nextTimer = createTimer(nextMode, state.settings, completed && state.settings.autoStart)
+  state.task = ''
   setTimer(nextTimer)
   if (completed && state.settings.autoStart) primeAudio()
-  state.task = ''
   toast(completed ? 'Session complete — saved.' : 'Logged the time you finished.')
   completing = false
   render()
@@ -641,8 +606,8 @@ async function removeAllSessions() {
 // ---------- timer screen handlers ----------
 
 const timerHandlers = {
-  onSubject: (value) => { state.subject = value; localStorage.setItem('focus-last-subject', value) },
-  onTask: (value) => { state.task = value },
+  onSubject: (value) => { state.subject = value; localStorage.setItem('focus-last-subject', value); persistTimer() },
+  onTask: (value) => { state.task = value; persistTimer() },
   onMode: (mode) => { setTimer(createTimer(mode, state.settings)); render() },
   onAdjust: (delta) => {
     const minutes = adjustedMinutes(state.timer.totalSeconds, delta)
@@ -721,7 +686,6 @@ async function boot() {
   attachStaticListeners()
   render()
 
-  await freshStartDbCleared
   state.sessions = await getSessions()
   render()
 
@@ -738,11 +702,12 @@ async function boot() {
   }
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then((registration) => registration.update())
-        .catch((error) => console.error('Service worker registration failed:', error))
-    })
+    const registerWorker = () => navigator.serviceWorker.register('./sw.js')
+      .then((registration) => registration?.update())
+      .catch((error) => console.warn('Service worker registration failed:', error))
+    // IndexedDB/journal startup can finish after window.load has already fired.
+    if (document.readyState === 'complete') registerWorker()
+    else window.addEventListener('load', registerWorker, { once: true })
     let reloaded = false
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloaded) return
