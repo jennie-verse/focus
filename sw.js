@@ -1,5 +1,5 @@
 // Keep VERSION in step with APP_BUILD in ./src/version.js.
-const VERSION = '2026.09.08-review2'
+const VERSION = '2026.09.11-todayhandoff1'
 const CACHE = `focus-${VERSION}`
 
 const CORE_ASSETS = [

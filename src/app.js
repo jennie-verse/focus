@@ -581,6 +581,38 @@ async function redactJournalHistory() {
   render()
 }
 
+// ---------- today handoff ----------
+
+// Sends a finished session to Today's Timeline (mirrors Today's own "Send to
+// Focus" — see today's app.js sendToFocus). Today decides what to do with
+// the handoff; Focus keeps its own record of the session either way.
+function sendToToday(session) {
+  const title = (session.task || session.subject || '').trim()
+  if (!title) { toast('Add a subject or task first.'); return }
+  const params = new URLSearchParams({
+    add: title,
+    from: 'focus',
+    startedAt: new Date(session.startedAt).toISOString(),
+    endedAt: new Date(session.endedAt).toISOString(),
+    durationSec: String(session.elapsedSeconds),
+  })
+  window.location.href = `../today/?${params.toString()}`
+}
+
+// ---------- URL intake (?task=) — used by Today's "Send to Focus" ----------
+
+function handleUrlIntake() {
+  let params
+  try { params = new URLSearchParams(location.search) } catch { return }
+  const task = params.get('task')
+  const fromParam = params.get('from')
+  try { history.replaceState({}, '', location.pathname + location.hash) } catch { /* ignore */ }
+  if (fromParam !== 'today' || task == null || !task.trim()) return
+  state.task = task.trim().slice(0, 100)
+  persistTimer()
+  toast('Task filled in from Today.')
+}
+
 // ---------- session removal ----------
 
 async function removeSession(id) {
@@ -634,6 +666,7 @@ const timerHandlers = {
   onEnd: () => finishSession(false),
   onSettings: () => { state.screen = 'settings'; render() },
   onDeleteSession: removeSession,
+  onSendToToday: sendToToday,
 }
 
 // ---------- settings screen handlers ----------
@@ -684,6 +717,7 @@ function attachStaticListeners() {
 async function boot() {
   applyFontScale()
   attachStaticListeners()
+  handleUrlIntake()
   render()
 
   state.sessions = await getSessions()

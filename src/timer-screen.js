@@ -121,12 +121,15 @@ function buildStatsPanel(today, streak, days, sessions, handlers) {
     sessions.slice(0, 8).forEach((session) => {
       const label = session.subject || MODES.find((mode) => mode.id === session.mode)?.label || 'Break'
       const sub = session.task || new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(session.endedAt)
+      const sendBtn = el('button', { class: 'send-today', type: 'button', 'aria-label': 'Send to Today', title: 'Send to Today', text: '↗' })
+      sendBtn.addEventListener('click', () => handlers.onSendToToday(session))
       const deleteBtn = el('button', { class: 'delete-session', type: 'button', 'aria-label': 'Delete this record', text: '×' })
       deleteBtn.addEventListener('click', () => handlers.onDeleteSession(session.id))
       sessionList.appendChild(el('div', { class: 'session-row' }, [
         el('span', { class: `session-dot ${session.mode}`, 'aria-hidden': 'true' }),
         el('div', {}, [el('strong', { text: label }), el('span', { text: sub })]),
         el('span', { class: 'session-duration', text: formatDuration(session.elapsedSeconds, true) }),
+        sendBtn,
         deleteBtn,
       ]))
     })
