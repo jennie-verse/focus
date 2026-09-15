@@ -212,6 +212,10 @@ export function sessionToEvent(session) {
 
   const minutes = Math.max(1, Math.round(seconds / 60))
   const completed = session.completed === true
+  // Today reads this feed to auto-fill its Timeline (see today's sync.js
+  // findUnimportedFocusEvents) — startedAt and a real task/subject title
+  // let it place the entry correctly instead of a generic "Focused for N min".
+  const label = (session.task || session.subject || '').trim()
 
   return {
     v: 1,
@@ -219,7 +223,8 @@ export function sessionToEvent(session) {
     app: 'focus',
     kind: completed ? 'session.completed' : 'session.ended',
     at: localIso(session.endedAt),
-    title: completed ? `Finished a ${minutes}-min focus session` : `Focused for ${minutes} min`,
+    startedAt: localIso(session.startedAt),
+    title: label || (completed ? `Finished a ${minutes}-min focus session` : `Focused for ${minutes} min`),
     ref: '../focus/',
   }
 }

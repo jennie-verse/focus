@@ -216,6 +216,11 @@ export function renderTimerScreen(container, state, handlers) {
     endBtn.addEventListener('click', handlers.onEnd)
     actions.appendChild(endBtn)
   }
+  if ((timer.status === 'running' || timer.status === 'paused') && !timer.pendingSession) {
+    const addToTodayBtn = el('button', { class: 'secondary-action handoff-action', type: 'button', text: 'Add to Today' })
+    addToTodayBtn.addEventListener('click', handlers.onSendStartToToday)
+    actions.appendChild(addToTodayBtn)
+  }
   main.appendChild(actions)
 
   if (!minimal) main.appendChild(buildStatsPanel(today, streak, days, sessions, handlers))

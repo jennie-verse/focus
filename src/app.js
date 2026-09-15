@@ -586,6 +586,22 @@ async function redactJournalHistory() {
 // Sends a finished session to Today's Timeline (mirrors Today's own "Send to
 // Focus" — see today's app.js sendToFocus). Today decides what to do with
 // the handoff; Focus keeps its own record of the session either way.
+// Hands off the timer that's running right now (not yet finished) — mirrors
+// sendToToday below but for a session in progress. Today starts a Current
+// activity entry with no end time; the user (or the completion handoff/
+// auto-import once the session ends) fills that in later.
+function sendStartToToday() {
+  const title = (state.task || state.subject || '').trim()
+  if (!title) { toast('Add a subject or task first.'); return }
+  const startedAt = state.timer.startedAt || Date.now()
+  const params = new URLSearchParams({
+    start: title,
+    from: 'focus',
+    startedAt: new Date(startedAt).toISOString(),
+  })
+  window.location.href = `../today/?${params.toString()}`
+}
+
 function sendToToday(session) {
   const title = (session.task || session.subject || '').trim()
   if (!title) { toast('Add a subject or task first.'); return }
@@ -667,6 +683,7 @@ const timerHandlers = {
   onSettings: () => { state.screen = 'settings'; render() },
   onDeleteSession: removeSession,
   onSendToToday: sendToToday,
+  onSendStartToToday: sendStartToToday,
 }
 
 // ---------- settings screen handlers ----------

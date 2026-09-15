@@ -215,6 +215,7 @@ button:disabled { cursor: default; opacity: 0.55; }
 .secondary-action { border: 1px solid var(--border); background: var(--surface); color: var(--accent-deep); }
 .secondary-action:hover { border-color: var(--accent); background: var(--pink-soft); }
 .danger-action { border: 1px solid var(--danger); background: var(--danger); color: #fff; }
+.handoff-action { grid-column: 1 / -1; }
 
 .stats-panel {
   margin-top: 20px;
