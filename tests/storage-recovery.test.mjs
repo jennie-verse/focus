@@ -76,3 +76,25 @@ test('failed replacement aborts the clear, and failed dual storage does not repo
   assert.deepEqual(ids(await api.getSessions()), ['keep'])
   assert.throws(() => api.replaceSessions([{}]), /Invalid session/)
 })
+
+test('a saved 25-minute focus length moves to the 30-minute default exactly once', () => {
+  const run = storage(), api = run.context
+  run.values.set('focus-settings-v1', JSON.stringify({ focusMinutes: 25, shortMinutes: 7 }))
+  const first = api.loadSettings()
+  assert.equal(first.focusMinutes, 30)
+  assert.equal(first.shortMinutes, 7)
+  assert.equal(JSON.parse(run.values.get('focus-settings-v1')).focusMinutes, 30)
+  // The user later chooses 25 on purpose: it must stay.
+  run.values.set('focus-settings-v1', JSON.stringify({ ...first, focusMinutes: 25 }))
+  assert.equal(api.loadSettings().focusMinutes, 25)
+})
+test('new installs default to 30 minutes and the timer-at-top layout', () => {
+  const settings = storage().context.loadSettings()
+  assert.equal(settings.focusMinutes, 30)
+  assert.equal(settings.timerFirst, true)
+})
+test('other saved focus lengths are left alone by the 30-minute migration', () => {
+  const run = storage(), api = run.context
+  run.values.set('focus-settings-v1', JSON.stringify({ focusMinutes: 45 }))
+  assert.equal(api.loadSettings().focusMinutes, 45)
+})
