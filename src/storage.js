@@ -15,6 +15,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   vibration: true,
   notify: true,
   autoStart: false,
+  // Ring first, mode tabs below it (keeps the timer near the top of the screen).
+  timerFirst: true,
   // Text size step, 1-6. 4 is today's default look (unchanged); see FONT_SCALES in App.jsx.
   fontScale: 4,
 })

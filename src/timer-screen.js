@@ -157,6 +157,13 @@ export function renderTimerScreen(container, state, handlers) {
 
   const main = el('main', { class: 'app-main' })
 
+  const timerSection = el('section', { class: 'timer-section', 'aria-label': 'Focus timer' })
+  const minusBtn = el('button', { class: 'minute-button', type: 'button', 'aria-label': 'One minute less', disabled: locked, text: '−' })
+  minusBtn.addEventListener('click', () => handlers.onAdjust(-1))
+  const plusBtn = el('button', { class: 'minute-button', type: 'button', 'aria-label': 'One minute more', disabled: locked, text: '＋' })
+  plusBtn.addEventListener('click', () => handlers.onAdjust(1))
+  timerSection.append(minusBtn, buildRing(timer), plusBtn)
+  let modeNode = null
   if (!minimal) {
     const modeControl = el('div', { class: 'mode-control', role: 'group', 'aria-label': 'Timer mode' })
     MODES.forEach((mode) => {
@@ -169,16 +176,12 @@ export function renderTimerScreen(container, state, handlers) {
       btn.addEventListener('click', () => handlers.onMode(mode.id))
       modeControl.appendChild(btn)
     })
-    main.appendChild(modeControl)
+    modeNode = modeControl
   }
 
-  const timerSection = el('section', { class: 'timer-section', 'aria-label': 'Focus timer' })
-  const minusBtn = el('button', { class: 'minute-button', type: 'button', 'aria-label': 'One minute less', disabled: locked, text: '−' })
-  minusBtn.addEventListener('click', () => handlers.onAdjust(-1))
-  const plusBtn = el('button', { class: 'minute-button', type: 'button', 'aria-label': 'One minute more', disabled: locked, text: '＋' })
-  plusBtn.addEventListener('click', () => handlers.onAdjust(1))
-  timerSection.append(minusBtn, buildRing(timer), plusBtn)
-  main.appendChild(timerSection)
+  // Timer at top (default): ring first, mode picker right below it.
+  if (settings.timerFirst !== false) main.append(timerSection, ...(modeNode ? [modeNode] : []))
+  else main.append(...(modeNode ? [modeNode] : []), timerSection)
 
   if (!minimal) {
     const fields = el('div', { class: 'session-fields' })

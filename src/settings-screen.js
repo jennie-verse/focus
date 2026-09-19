@@ -80,6 +80,9 @@ export function renderSettingsScreen(container, state, handlers) {
   })
   main.appendChild(durationGroup)
 
+  durationGroup.appendChild(toggle('Timer at top', settings.timerFirst !== false, (value) => update('timerFirst', value)))
+  durationGroup.appendChild(el('p', { class: 'sync-hint', text: 'Shows the timer ring right under the title, with the Focus / Short break / Long break picker below it.' }))
+
   // ── Display (text size) ──
   const displayGroup = el('section', { class: 'settings-group display-group', 'aria-label': 'Display' })
   const fontScale = settings.fontScale ?? 4

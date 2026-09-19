@@ -113,6 +113,7 @@ button:disabled { cursor: default; opacity: 0.55; }
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
+  margin-bottom: 14px;
 }
 .mode-control button:first-child { border-radius: 15px 0 0 15px; }
 .mode-control button:last-child { border-radius: 0 15px 15px 0; }
