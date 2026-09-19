@@ -87,7 +87,7 @@ Settings → **Minimal mode while a timer is running**을 켜면, 타이머가 *
 
 | 상황 | 호환 이벤트에 남는 문구 |
 |---|---|
-| 끝까지 완주 | `Finished a 25-min focus session` |
+| 끝까지 완주 | `Finished a 30-min focus session` |
 | 중간에 종료 | `Focused for 12 min` |
 
 **1분 미만은 올라가지 않습니다.** 실수로 눌렀다 끈 것을 기록으로 남기지 않기 위해서입니다.

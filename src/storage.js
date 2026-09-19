@@ -4,9 +4,10 @@ const SESSION_STORE = 'sessions'
 const FALLBACK_SESSIONS_KEY = 'focus-sessions-v1'
 const SETTINGS_KEY = 'focus-settings-v1'
 const ACTIVE_KEY = 'focus-active-v1'
+const DEFAULT_30_KEY = 'focus-default-30-v1'
 
 export const DEFAULT_SETTINGS = Object.freeze({
-  focusMinutes: 25,
+  focusMinutes: 30,
   shortMinutes: 5,
   longMinutes: 15,
   longEvery: 4,
@@ -129,7 +130,19 @@ function mutateSessions(change) {
 
 export function loadSettings() {
   const stored = safeParse(localStorage.getItem(SETTINGS_KEY), {})
-  return { ...DEFAULT_SETTINGS, ...(stored && typeof stored === 'object' ? stored : {}) }
+  const settings = { ...DEFAULT_SETTINGS, ...(stored && typeof stored === 'object' ? stored : {}) }
+  // One-time move of the old 25-minute default to 30. Devices that saved
+  // settings while 25 was the default would otherwise stay on 25 forever.
+  try {
+    if (!localStorage.getItem(DEFAULT_30_KEY)) {
+      if (settings.focusMinutes === 25) {
+        settings.focusMinutes = 30
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+      }
+      localStorage.setItem(DEFAULT_30_KEY, '1')
+    }
+  } catch { /* Storage unavailable: keep the loaded values. */ }
+  return settings
 }
 
 export function saveSettings(settings) {

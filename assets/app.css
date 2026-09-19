@@ -145,11 +145,11 @@ button:disabled { cursor: default; opacity: 0.55; }
 
 .timer-section {
   display: grid;
-  grid-template-columns: 48px minmax(220px, 270px) 48px;
+  grid-template-columns: 48px minmax(200px, 236px) 48px;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 24px 0 18px;
+  padding: 8px 0 12px;
 }
 .minute-button {
   display: flex;
@@ -372,13 +372,13 @@ button:disabled { cursor: default; opacity: 0.55; }
 
 @media (min-width: 740px) {
   .app-main { padding-right: 20px; padding-left: 20px; }
-  .timer-section { padding-top: 28px; }
+  .timer-section { padding-top: 12px; }
   .stats-panel { padding: 22px 26px; }
 }
 
 @media (max-width: 410px) {
   .app-header h1 { font-size: calc(29px * var(--scale)); }
-  .timer-section { grid-template-columns: 44px minmax(195px, 238px) 44px; gap: 7px; padding-top: 18px; }
+  .timer-section { grid-template-columns: 44px minmax(185px, 214px) 44px; gap: 7px; padding-top: 4px; }
   .minute-button { width: 44px; height: 44px; }
   .timer-copy strong { font-size: clamp(calc(45px * var(--scale)), 14vw, calc(58px * var(--scale))); }
   .session-fields label { grid-template-columns: 25px 76px minmax(0, 1fr); padding-right: 11px; padding-left: 11px; }
