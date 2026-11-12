@@ -1,5 +1,5 @@
 // Keep VERSION in step with APP_BUILD in ./src/version.js.
-const VERSION = '2026.09.18-timertop'
+const VERSION = '2026.11.12-foldable1'
 const CACHE = `focus-${VERSION}`
 
 const CORE_ASSETS = [

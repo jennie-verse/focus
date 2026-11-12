@@ -57,3 +57,10 @@
 - 검증: 전체 기존 테스트 및 추가 회귀 테스트, JavaScript 구문 검사. 격리된 Chromium에서 데스크톱 1280×900/모바일 390×844 저장·새로고침·실패 복구 검증. Browser plugin not available; bundled Playwright 사용.
 - 주입 검증: 실제 IndexedDB 쓰기 실패 시 fallback CRUD/복구 및 이중 저장 실패 후 Retry save.
 - 한계: 실제 iPhone Safari/Home Screen 및 개인 계정의 실서버 동기화는 직접 시험하지 않음.
+
+
+## 2026-11-12 폴더블(iPhone Duo)·Mac 최적화 (`2026.11.12-foldable1`)
+
+- 변경: 펼친 넓은 화면(폭 880px 이상)에서 메인은 왼쪽 타이머·입력, 오른쪽 통계의 2열, 설정 카드는 2열 배치. `overscroll-behavior: none`, 입력·라벨·링크 `touch-action: manipulation`, 터치 기기에서 hover 잔상 방지. 폭 기준 CSS만 사용하므로 접기/펼치기로 창 크기가 바뀌어도 자동으로 다시 배치됩니다. 저장 형식·키·동기화 계약·색상은 변경 없음.
+- 검증: `npm test` 33/33, `npm run test:syntax` 통과. Chromium(Playwright) 360×780 / 840×760 / 1000×700 / 1440×900에서 메인·설정 화면의 가로 넘침 없음, 콘솔 오류 없음, 스크린샷 육안 확인.
+- 실기기 확인 필요: 실제 iPhone Duo 접기/펼치기 테스트는 quill 앱에서만 사용자가 진행했으며, 이 앱은 아직 필요합니다. Mac Safari도 실제 확인 필요.

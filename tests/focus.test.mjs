@@ -211,3 +211,14 @@ test('the backup file format is unchanged: {app: "Focus", version: 1, settings, 
   assert.match(app, /app: 'Focus', version: 1, exportedAt: Date\.now\(\), settings: state\.settings, sessions: state\.sessions/)
   assert.match(app, /backup\?\.app !== 'Focus' \|\| !Array\.isArray\(backup\.sessions\)/)
 })
+
+test('wide/unfolded screens: two-column main and settings, touch-action, overscroll, version stamp', async () => {
+  const css = await readFile(new URL('../assets/app.css', import.meta.url), 'utf8')
+  assert.match(css, /@media \(min-width: 880px\)[\s\S]*grid-template-columns: minmax\(0, 400px\) minmax\(0, 1fr\)/)
+  assert.match(css, /\.settings-main \{[^}]*column-count: 2/)
+  assert.match(css, /overscroll-behavior: none/)
+  assert.match(css, /input, label, summary, a \{ touch-action: manipulation/)
+  assert.match(css, /\.sync-field input \{[^}]*font-size: 16px/)
+  const version = await readFile(new URL('../src/version.js', import.meta.url), 'utf8')
+  assert.match(version, /APP_BUILD = '2026\.11\.12-foldable1'/)
+})

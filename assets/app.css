@@ -63,9 +63,10 @@
 *::-webkit-scrollbar-thumb { border: 2px solid var(--pink-soft); border-radius: 999px; background: var(--accent); }
 *::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-html { min-width: 320px; min-height: 100%; background: var(--bg); -webkit-text-size-adjust: 100%; }
-body { min-width: 320px; min-height: 100%; margin: 0; color: var(--text); background: var(--bg); overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
+html { min-width: 320px; min-height: 100%; background: var(--bg); -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
+body { min-width: 320px; min-height: 100%; margin: 0; color: var(--text); background: var(--bg); overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
 button, input, textarea, select { font: inherit; color: inherit; }
+input, label, summary, a { touch-action: manipulation; }
 button { min-height: 44px; touch-action: manipulation; cursor: pointer; display: inline-flex; align-items: center; }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid var(--sky-strong); outline-offset: 2px; }
 button:disabled { cursor: default; opacity: 0.55; }
@@ -377,6 +378,28 @@ button:disabled { cursor: default; opacity: 0.55; }
   .stats-panel { padding: 22px 26px; }
 }
 
+/* Unfolded foldable (iPhone Duo) and wide Mac windows: timer controls on the
+   left, stats on the right; Settings cards in two columns. Width-based only,
+   so folding/unfolding while the app is open just re-flows the layout. */
+@media (min-width: 880px) {
+  .app-header, .settings-header { max-width: 1040px; }
+  .app-main:has(> .stats-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
+    grid-template-rows: repeat(4, max-content) 1fr;
+    column-gap: 28px;
+    align-items: start;
+    max-width: 1040px;
+  }
+  .app-main:has(> .stats-panel) > * { grid-column: 1; }
+  .app-main:has(> .stats-panel) > .stats-panel { grid-column: 2; grid-row: 1 / 6; margin-top: 8px; }
+  /* Multi-column flow (not grid rows) so cards of different heights pack
+     without gaps. */
+  .settings-main { display: block; max-width: 1040px; column-count: 2; column-gap: 16px; }
+  .settings-main > * { break-inside: avoid; margin-bottom: 16px; }
+  .confirm-modal { max-width: 420px; }
+}
+
 @media (max-width: 410px) {
   .app-header h1 { font-size: calc(29px * var(--scale)); }
   .timer-section { grid-template-columns: 44px minmax(185px, 214px) 44px; gap: 7px; padding-top: 4px; }
@@ -388,6 +411,12 @@ button:disabled { cursor: default; opacity: 0.55; }
   .setting-icon { width: 36px; height: 36px; }
   .stepper { grid-template-columns: 40px 49px 40px; }
   .stepper button { width: 40px; }
+}
+
+/* Mouse/trackpad only (Mac): thin pink scrollbars are already global; just keep
+   hover feedback off touch screens so taps never leave a stuck hover state. */
+@media (hover: none) {
+  .icon-button:hover, .minute-button:hover, .secondary-action:hover { background: var(--surface); }
 }
 
 @media (prefers-reduced-motion: reduce) {
