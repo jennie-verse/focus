@@ -220,5 +220,13 @@ test('wide/unfolded screens: two-column main and settings, touch-action, overscr
   assert.match(css, /input, label, summary, a \{ touch-action: manipulation/)
   assert.match(css, /\.sync-field input \{[^}]*font-size: 16px/)
   const version = await readFile(new URL('../src/version.js', import.meta.url), 'utf8')
-  assert.match(version, /APP_BUILD = '2026\.11\.12-foldable1'/)
+  assert.match(version, /APP_BUILD = '2026\.11\.17-duocheck1'/)
+})
+
+test('landscape side safe-area insets survive the 740px rule and the records summary is a 44px target', async () => {
+  const css = await readFile(new URL('../assets/app.css', import.meta.url), 'utf8')
+  const wide = css.match(/@media \(min-width: 740px\) \{[\s\S]*?\n\}/)?.[0] || ''
+  assert.match(wide, /\.app-main \{ padding-right: max\(20px, env\(safe-area-inset-right\)\); padding-left: max\(20px, env\(safe-area-inset-left\)\); \}/)
+  assert.doesNotMatch(wide, /\.app-main \{ padding-right: 20px; padding-left: 20px; \}/)
+  assert.match(css, /\.daily-details summary \{ padding: 17px 4px 12px;/)
 })

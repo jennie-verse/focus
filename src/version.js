@@ -1,3 +1,3 @@
 // Single build stamp for the app shell. Must match VERSION in ../sw.js.
 // Static rewrite (Plan/webapp-benchmark C-1) — same features, no build step.
-export const APP_BUILD = '2026.11.12-foldable1'
+export const APP_BUILD = '2026.11.17-duocheck1'
